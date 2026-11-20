@@ -1,0 +1,233 @@
+// Claude-powered features. Every feature has a non-AI fallback so the app works without a key.
+import Anthropic from '@anthropic-ai/sdk';
+import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
+import { z } from 'zod';
+import fs from 'node:fs';
+
+const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5-5';
+
+export function aiEnabled() {
+  if (process.env.SITEPULSE_AI === 'off') return false;
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.SITEPULSE_AI === 'on');
+}
+
+let client;
+function getClient() {
+  if (!client) client = new Anthropic();
+  return client;
+}
+
+/** One structured-output call. Returns the parsed object or throws a readable Error. */
+async function structured({ system, content, schema, effort = 'medium', maxTokens = 16000 }) {
+  const response = await getClient().beta.messages.parse({
+    model: MODEL,
+    max_tokens: maxTokens,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    system,
+    messages: [{ role: 'user', content }],
+    output_config: { effort, format: betaZodOutputFormat(schema) },
+  });
+  if (response.stop_reason === 'refusal') {
+    throw new Error('The AI declined this request' + (response.stop_details?.explanation ? `: ${response.stop_details.explanation}` : '.'));
+  }
+  if (response.stop_reason === 'max_tokens') throw new Error('The AI response was too long and got cut off. Try a smaller input.');
+  if (!response.parsed_output) throw new Error('The AI returned an unreadable response.');
+  return response.parsed_output;
+}
+
+export function describeAIError(err) {
+  if (err instanceof Anthropic.AuthenticationError) return 'AI is not authorised: check ANTHROPIC_API_KEY.';
+  if (err instanceof Anthropic.RateLimitError) return 'AI rate limit reached, please try again in a minute.';
+  if (err instanceof Anthropic.APIConnectionError) return 'Could not reach the AI service.';
+  if (err instanceof Anthropic.APIError) return `AI service error (${err.status ?? 'unknown'}).`;
+  return err?.message || 'AI request failed.';
+}
+
+// ---------------------------------------------------------------- Programme extraction
+
+const ActivitySchema = z.object({
+  activities: z.array(
+    z.object({
+      code: z.string().nullable().describe('Activity ID / WBS code if shown'),
+      name: z.string().describe('Activity / task description'),
+      section: z.string().nullable().describe('Parent summary task, phase or area heading'),
+      start_date: z.string().nullable().describe('Planned start, YYYY-MM-DD'),
+      end_date: z.string().nullable().describe('Planned finish, YYYY-MM-DD'),
+      duration_days: z.number().nullable().describe('Planned duration in working days'),
+    })
+  ),
+});
+
+const PROGRAMME_SYSTEM = `You read construction work programmes (Gantt charts, MS Project / Primavera P6 exports, bar charts, schedules) and list the activities a site supervisor reports progress against.
+Rules:
+- Return only work activities (leaf tasks). Summary/heading rows become the "section" of the activities beneath them, not activities themselves.
+- Skip milestones with zero duration, page headers, legends, totals and blank rows.
+- Keep the activity wording as written in the programme; fix only obvious OCR breaks.
+- Dates as YYYY-MM-DD. Programmes from the UK, Africa, Middle East, Asia and Australia write dates day-first.
+- Use null for anything not shown. Do not invent dates or durations.`;
+
+export async function extractActivitiesWithAI({ text, pdfPath }) {
+  const content = [];
+  if (pdfPath) {
+    content.push({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: fs.readFileSync(pdfPath).toString('base64') },
+    });
+    content.push({ type: 'text', text: 'Extract every activity from this work programme.' });
+  } else {
+    content.push({ type: 'text', text: `Extract every activity from this work programme:\n\n<programme>\n${text}\n</programme>` });
+  }
+  const out = await structured({ system: PROGRAMME_SYSTEM, content, schema: ActivitySchema, effort: 'medium', maxTokens: 32000 });
+  return out.activities
+    .filter((a) => a.name?.trim())
+    .map((a) => {
+      let weight = a.duration_days;
+      if (!weight && a.start_date && a.end_date) {
+        weight = (Date.parse(a.end_date) - Date.parse(a.start_date)) / 86400000 + 1;
+      }
+      return {
+        code: a.code || null,
+        name: a.name.trim(),
+        section: a.section || null,
+        start_date: /^\d{4}-\d{2}-\d{2}$/.test(a.start_date || '') ? a.start_date : null,
+        end_date: /^\d{4}-\d{2}-\d{2}$/.test(a.end_date || '') ? a.end_date : null,
+        weight: weight > 0 ? weight : 1,
+      };
+    });
+}
+
+// ---------------------------------------------------------------- Site notes -> report fields
+
+const NotesSchema = z.object({
+  activities: z.array(
+    z.object({
+      activity_id: z.number().nullable().describe('id from the programme list when the work matches one, else null'),
+      activity_name: z.string().describe('programme activity name, or a short name for new work'),
+      progress: z.number().nullable().describe('cumulative % complete (0-100) if stated or clearly implied, else null'),
+      remarks: z.string().describe("what was done today on this activity"),
+    })
+  ),
+  weather: z.object({
+    condition: z.string().nullable().describe('one of: Sunny, Partly cloudy, Overcast, Light rain, Heavy rain, Storm, Windy, Hot, Cold, Fog'),
+    temp_high: z.number().nullable(),
+    temp_low: z.number().nullable(),
+    impact: z.string().nullable().describe('effect of weather on work'),
+    hours_lost: z.number().nullable(),
+  }),
+  labour: z.array(z.object({ trade: z.string(), count: z.number() })),
+  equipment: z.array(z.object({ name: z.string(), count: z.number(), status: z.string() })),
+  materials: z.array(z.object({ material: z.string(), quantity: z.string(), supplier: z.string(), notes: z.string() })),
+  visitors: z.array(z.object({ name: z.string(), organisation: z.string(), purpose: z.string(), time: z.string() })),
+  issues: z.array(
+    z.object({
+      category: z.string().describe('one of: Safety, Quality, Design/RFI, Delay, Resources, Access, Utilities, Environmental, Other'),
+      description: z.string(),
+      severity: z.string().describe('Low, Medium or High'),
+      action: z.string().describe('action taken or required, empty if none'),
+    })
+  ),
+  notes: z.string().describe('anything else worth recording that fits no other field'),
+});
+
+export async function parseSiteNotes({ notes, activities, date }) {
+  const list = activities
+    .map((a) => `${a.id}\t${a.code || ''}\t${a.name}${a.section ? ` [${a.section}]` : ''}\tcurrently ${a.progress}%`)
+    .join('\n');
+  const system = `You turn a construction site supervisor's end-of-day notes into a structured daily site report.
+Match work described in the notes to the programme activities (by meaning, not exact words) and use their ids. Work that matches nothing gets activity_id null.
+Progress is cumulative percent complete for the whole activity, not today's increment. If the notes give an increment ("another 10%"), add it to the activity's current progress. If no progress figure is given or implied, use null.
+Record only what the notes say. Leave lists empty and fields null when the notes don't mention them.`;
+  const text = `Report date: ${date}\n\nProgramme activities (id, code, name, current progress):\n<activities>\n${list || '(none uploaded)'}\n</activities>\n\nSupervisor's notes:\n<notes>\n${notes}\n</notes>`;
+  return structured({ system, content: [{ type: 'text', text }], schema: NotesSchema, effort: 'low' });
+}
+
+// ---------------------------------------------------------------- Report narrative
+
+const SummarySchema = z.object({
+  summary: z.string().describe('2-4 short paragraphs of plain text, no markdown'),
+});
+
+export async function generateReportSummary({ project, report, items, overall, previousOverall }) {
+  const system = `You write the executive summary at the top of a construction daily site report, for the project manager and client.
+Plain, factual, professional site-report English. Lead with the work done and the movement in overall progress, then weather impact, resources and deliveries, then issues needing attention with any actions. Mention visitors only if notable.
+Use only the facts given. No markdown, headings or bullet points. Keep it under 180 words.`;
+  const payload = {
+    project: { name: project.name, code: project.code, location: project.location },
+    date: report.report_date,
+    overall_progress_percent: overall,
+    previous_overall_progress_percent: previousOverall,
+    activities_worked: items.map((i) => ({ activity: i.activity_name, progress_before: i.progress_before, progress_now: i.progress, remarks: i.remarks })),
+    weather: report.weather,
+    labour: report.labour,
+    equipment: report.equipment,
+    materials_received: report.materials,
+    visitors: report.visitors,
+    issues: report.issues,
+    other_notes: report.notes,
+  };
+  const out = await structured({
+    system,
+    content: [{ type: 'text', text: `<report_data>\n${JSON.stringify(payload, null, 2)}\n</report_data>` }],
+    schema: SummarySchema,
+    effort: 'low',
+    maxTokens: 4000,
+  });
+  return out.summary.trim();
+}
+
+/** Template narrative used when AI is not configured or fails. */
+export function templateSummary({ project, report, items, overall, previousOverall }) {
+  const parts = [];
+  const delta = previousOverall != null ? Math.round((overall - previousOverall) * 10) / 10 : null;
+  parts.push(
+    `On ${report.report_date}, work progressed on ${items.length} activit${items.length === 1 ? 'y' : 'ies'} at ${project.name}. ` +
+      `Overall project progress stands at ${overall}%` +
+      (delta != null ? ` (${delta >= 0 ? '+' : ''}${delta}% since the previous report).` : '.')
+  );
+  const top = [...items].sort((a, b) => (b.progress - (b.progress_before || 0)) - (a.progress - (a.progress_before || 0))).slice(0, 3);
+  if (top.length) parts.push('Main activities: ' + top.map((i) => `${i.activity_name} (${i.progress}%)`).join('; ') + '.');
+  const w = report.weather || {};
+  if (w.condition) parts.push(`Weather: ${w.condition}${w.impact ? ` – ${w.impact}` : ''}${w.hours_lost ? ` (${w.hours_lost} h lost)` : ''}.`);
+  const labour = (report.labour || []).reduce((s, l) => s + (Number(l.count) || 0), 0);
+  if (labour) parts.push(`${labour} operatives on site.`);
+  if (report.materials?.length) parts.push(`Deliveries: ${report.materials.map((m) => m.material).join(', ')}.`);
+  if (report.issues?.length) parts.push(`${report.issues.length} site issue(s) recorded: ${report.issues.map((i) => i.description).join('; ')}.`);
+  return parts.join(' ');
+}
+
+// ---------------------------------------------------------------- Project insights
+
+const InsightSchema = z.object({
+  headline: z.string().describe('one sentence status of the project'),
+  status: z.string().describe('On track, At risk, or Behind'),
+  risks: z.array(z.object({ title: z.string(), detail: z.string() })).describe('up to 4'),
+  recommendations: z.array(z.string()).describe('up to 4 concrete next actions'),
+});
+
+export async function generateInsights({ project, activities, reports, overall, planned }) {
+  const system = `You are an experienced construction project controls engineer. From the programme and recent daily reports, give a short, honest status assessment.
+Base every point on the data: compare actual against planned progress, look for recurring issues, weather losses, resourcing trends and activities that have stalled. Be specific (name activities). No generic advice.`;
+  const data = {
+    project: { name: project.name, start: project.start_date, end: project.end_date },
+    today: new Date().toISOString().slice(0, 10),
+    overall_actual_percent: overall,
+    overall_planned_percent_today: planned,
+    activities: activities.map((a) => ({ name: a.name, start: a.start_date, end: a.end_date, actual: a.progress, planned_today: a.planned })),
+    recent_reports: reports.map((r) => ({
+      date: r.report_date,
+      overall: r.overall_progress,
+      weather: r.weather,
+      labour_total: (r.labour || []).reduce((s, l) => s + (Number(l.count) || 0), 0),
+      issues: r.issues,
+      summary: r.summary,
+    })),
+  };
+  return structured({
+    system,
+    content: [{ type: 'text', text: `<project_data>\n${JSON.stringify(data)}\n</project_data>` }],
+    schema: InsightSchema,
+    effort: 'medium',
+    maxTokens: 8000,
+  });
+}
