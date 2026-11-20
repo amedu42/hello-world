@@ -9,6 +9,30 @@ import { renderReportPdf } from './pdf.js';
 import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, templateSummary, generateInsights } from './ai.js';
 
 const app = express();
+app.disable('x-powered-by');
+
+// Health check for the host (no password, reveals nothing).
+app.get('/healthz', (_req, res) => res.send('ok'));
+
+// Shared-password protection: when APP_PASSWORD is set, every page, API call, photo and PDF
+// requires it (HTTP Basic auth – the browser asks once; any username is accepted).
+const APP_PASSWORD = process.env.APP_PASSWORD || '';
+if (APP_PASSWORD) {
+  const expected = crypto.createHash('sha256').update(APP_PASSWORD).digest();
+  app.use((req, res, next) => {
+    const [scheme, encoded] = (req.headers.authorization || '').split(' ');
+    if (scheme === 'Basic' && encoded) {
+      const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+      const given = decoded.slice(decoded.indexOf(':') + 1);
+      if (crypto.timingSafeEqual(crypto.createHash('sha256').update(given).digest(), expected)) return next();
+    }
+    res.set('WWW-Authenticate', 'Basic realm="SitePulse", charset="UTF-8"');
+    res.status(401).send('Password required');
+  });
+} else if (process.env.NODE_ENV === 'production') {
+  console.warn('WARNING: APP_PASSWORD is not set – anyone who can reach this server can view and change all data.');
+}
+
 app.use(express.json({ limit: '5mb' }));
 
 const storage = multer.diskStorage({

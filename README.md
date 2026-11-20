@@ -45,6 +45,19 @@ npm start                   # serves app + API on http://localhost:3001
 Data (SQLite database and uploaded photos) is stored in `./data` (change with `DATA_DIR`).
 A sample programme is in `samples/sample-programme.csv`.
 
+## Deploying to Render
+
+The repo includes `render.yaml` (a Render Blueprint): a Node web service on the Starter plan with a 1 GB persistent disk at `/var/data` for the database and photos.
+
+1. Merge this code into the branch Render will deploy (the repository's default branch).
+2. In the Render dashboard: **New + → Blueprint**, connect GitHub and pick this repository.
+3. When asked, enter:
+   - `APP_PASSWORD`: the shared team password (required; the browser asks for it, any username works).
+   - `ANTHROPIC_API_KEY`: optional, turns on the AI features.
+4. Click **Apply**. The first build takes a few minutes; the app is then at `https://sitepulse-xxxx.onrender.com`.
+
+Every push to that branch redeploys automatically; data on the disk is kept. To change the password later, edit `APP_PASSWORD` under the service's **Environment** tab.
+
 ## Structure
 
 ```
@@ -65,4 +78,4 @@ client/src/
 - One report per project per day. Opening an existing date lets you edit it, and editing or deleting a report recalculates progress.
 - Photos must be JPEG or PNG so they can be embedded in the PDF.
 - `.mpp` and `.xls` files must be exported to `.xlsx`, `.csv` or MS Project XML first.
-- No user accounts or logins yet. Put it behind your own authentication before exposing it on the internet.
+- Access is protected by one shared password (`APP_PASSWORD`); there are no individual user accounts yet.

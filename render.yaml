@@ -1,0 +1,21 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# In Render: New + → Blueprint → pick this repository. You'll be asked for APP_PASSWORD and ANTHROPIC_API_KEY.
+services:
+  - type: web
+    name: sitepulse
+    runtime: node
+    plan: starter            # a paid plan is needed for the persistent disk below
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: sitepulse-data   # SQLite database + uploaded photos live here and survive deploys
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: APP_PASSWORD     # shared team password (required)
+        sync: false
+      - key: ANTHROPIC_API_KEY  # optional: turns on the AI features
+        sync: false
