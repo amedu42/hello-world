@@ -419,3 +419,20 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; }
   .user-meta, .topbar .ai-pill { display: none; }
   .admin-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- password reset & legal */
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-2); }
+.check input { margin-top: 3px; }
+.link-box { margin-top: 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.stack-note { align-items: flex-start; }
+.legal-footer { display: flex; gap: 10px; justify-content: center; font-size: 13px; color: var(--muted); padding: 28px 0 8px; }
+.legal-footer a { color: var(--muted); }
+.auth-wrap .legal-footer { padding-top: 4px; }
+.legal-wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px; }
+.legal { padding: 32px 36px; line-height: 1.65; }
+.legal h1 { margin-top: 12px; }
+.legal h2 { font-size: 17px; margin: 26px 0 8px; }
+.legal ul { padding-left: 20px; margin: 0 0 8px; }
+.legal li { margin-bottom: 6px; }
+.legal-back { font-size: 13px; }
+@media (max-width: 640px) { .legal { padding: 22px 18px; } }

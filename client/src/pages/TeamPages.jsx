@@ -198,6 +198,15 @@ export function AdminPage() {
     load();
   }, [load]);
 
+  const [resetInfo, setResetInfo] = useState(null);
+  const resetLink = async (c) => {
+    try {
+      setResetInfo({ company: c.name, ...(await api.post(`/api/auth/admin/companies/${c.id}/reset-link`)) });
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const toggle = async (c) => {
     const next = c.status === 'active' ? 'suspended' : 'active';
     if (next === 'suspended' && !confirm(`Suspend ${c.name}? Their users will be logged out and unable to log in. Their data is kept.`)) return;
@@ -242,12 +251,24 @@ export function AdminPage() {
                       <td className="nowrap">{fmtDateTime(c.created_at)}</td>
                       <td className="nowrap">{fmtDateTime(c.last_login)}</td>
                       <td><span className={`status-tag ${c.status === 'active' ? 'ahead' : 'behind'}`}>{c.status === 'active' ? 'Active' : 'Suspended'}</span></td>
-                      <td className="right"><button className="btn ghost sm" onClick={() => toggle(c)}>{c.status === 'active' ? 'Suspend' : 'Reactivate'}</button></td>
+                      <td className="right nowrap">
+                        <button className="btn ghost sm" onClick={() => resetLink(c)} title="Create a password reset link for this company's admin">Reset link</button>{' '}
+                        <button className="btn ghost sm" onClick={() => toggle(c)}>{c.status === 'active' ? 'Suspend' : 'Reactivate'}</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {resetInfo && (
+              <div className="note info stack-note">
+                <span>
+                  Password reset link for <b>{resetInfo.name}</b> ({resetInfo.email}) at {resetInfo.company}. Send it to them; it works once, for {resetInfo.minutes} minutes:
+                  <input readOnly value={resetInfo.link} onFocus={(e) => e.target.select()} className="link-box" />
+                </span>
+                <button className="icon-btn" onClick={() => setResetInfo(null)} aria-label="Dismiss">✕</button>
+              </div>
+            )}
             {data.unassigned_projects > 0 && <p className="muted small">{data.unassigned_projects} project(s) from before company accounts are not assigned to any company yet.</p>}
           </section>
         </>

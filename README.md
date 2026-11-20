@@ -30,7 +30,9 @@ An AI-enabled web app for construction professionals to track project progress a
 - **Team**: company admins add people (with a temporary password they must change on first login), change roles, reset passwords and remove users. *Admins* manage the team and can delete projects; *members* do everything else.
 - **Platform admin**: the user whose email matches `PLATFORM_ADMIN_EMAIL` gets a *Platform admin* page listing every company with usage, and can suspend or reactivate a company (suspended users are logged out and can't log in; data is kept).
 - Projects created before accounts existed are assigned to the platform admin's company when that email signs up (or at server start if it already has).
-- Passwords are hashed with scrypt; sessions are HTTP-only cookies valid for 30 days; repeated login attempts are rate-limited. There is no email-based "forgot password" yet: a company admin resets it.
+- Passwords are hashed with scrypt; sessions are HTTP-only cookies valid for 30 days; repeated login attempts are rate-limited.
+- **Forgot password**: users request a link at `/forgot-password`; it is emailed, works once, expires after 60 minutes, and resetting logs out all their other sessions. Email is sent over SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`); without it, links are written to the server log. Company admins can also reset passwords from the Team page, and the platform admin can create a reset link for any company's admin.
+- **Terms of Service** (`/terms`) and **Privacy Policy** (`/privacy`) pages; new companies must accept them at sign-up. Business name, contact email, governing law and effective date come from `LEGAL_BUSINESS_NAME`, `LEGAL_CONTACT_EMAIL`, `LEGAL_GOVERNING_LAW`, `LEGAL_EFFECTIVE_DATE`. The text is a starting template, not legal advice.
 
 ## Running it
 

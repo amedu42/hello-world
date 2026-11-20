@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.js';
 import { Spinner } from './components/ui.jsx';
-import { LoginPage, SignupPage } from './pages/AuthPages.jsx';
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from './pages/AuthPages.jsx';
+import { LegalFooter, PrivacyPage, TermsPage } from './pages/LegalPages.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ReportForm from './pages/ReportForm.jsx';
@@ -42,11 +43,16 @@ export default function App() {
   if (!me) {
     const afterLogin = async () => {
       await reload();
-      navigate(location.pathname === '/login' || location.pathname === '/signup' ? '/' : location.pathname, { replace: true });
+      const authPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
+      navigate(authPaths.includes(location.pathname) ? '/' : location.pathname, { replace: true });
     };
     return (
       <Routes>
         <Route path="/signup" element={<SignupPage onDone={afterLogin} />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage onDone={afterLogin} />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="*" element={<LoginPage onDone={afterLogin} />} />
       </Routes>
     );
@@ -96,13 +102,19 @@ export default function App() {
           </div>
         </header>
         <main className="container">
-          {forcePassword ? (
+          {location.pathname === '/terms' ? (
+            <TermsPage />
+          ) : location.pathname === '/privacy' ? (
+            <PrivacyPage />
+          ) : forcePassword ? (
             <AccountPage />
           ) : (
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="/signup" element={<Navigate to="/" replace />} />
+              <Route path="/forgot-password" element={<Navigate to="/account" replace />} />
+              <Route path="/reset-password" element={<ResetPasswordPage onDone={reload} />} />
               <Route path="/projects/:id" element={<ProjectDashboard />} />
               <Route path="/projects/:id/reports/new" element={<ReportForm />} />
               <Route path="/reports/:rid" element={<ReportView />} />
@@ -113,6 +125,7 @@ export default function App() {
               <Route path="*" element={<p className="muted">Page not found. <Link to="/">Back to projects</Link></p>} />
             </Routes>
           )}
+          {!['/terms', '/privacy'].includes(location.pathname) && <LegalFooter />}
         </main>
       </StatusCtx.Provider>
     </AuthCtx.Provider>

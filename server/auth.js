@@ -2,6 +2,7 @@
 import express from 'express';
 import crypto from 'node:crypto';
 import { db, tx } from './db.js';
+import { appUrl, mailEnabled, resetEmail, sendMail } from './mail.js';
 
 // ------------------------------------------------------------------ schema
 
@@ -29,9 +30,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `);
+
+const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!userCols.includes('terms_accepted_at')) db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
 
 // Projects created before multi-company support have no company yet.
 const projectCols = db.prepare('PRAGMA table_info(projects)').all().map((c) => c.name);
@@ -115,12 +125,13 @@ function rateLimit(key, max = 10, windowMs = 15 * 60000) {
     return;
   }
   rec.n++;
-  if (rec.n > max) throw new AuthError(429, 'Too many attempts. Please wait 15 minutes and try again.');
+  if (rec.n > max) throw new AuthError(429, `Too many attempts. Please wait ${Math.ceil((rec.reset - now) / 60000)} minutes and try again.`);
 }
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of attempts) if (v.reset < now) attempts.delete(k);
   db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(new Date().toISOString());
+  db.prepare("DELETE FROM password_resets WHERE expires_at < ?").run(new Date().toISOString());
 }, 3600000).unref();
 
 // If the platform owner already has an account, give them any projects left from before company accounts.
@@ -239,12 +250,13 @@ authRouter.post(
     if (!name) throw new AuthError(400, 'Enter your name.');
     if (!isEmail(email)) throw new AuthError(400, 'Enter a valid email address.');
     checkPassword(b.password);
+    if (b.accept_terms !== true) throw new AuthError(400, 'Please accept the Terms of Service and Privacy Policy.');
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new AuthError(409, 'An account with this email already exists. Log in instead.');
 
     const userId = tx(() => {
       const cid = db.prepare('INSERT INTO companies (name) VALUES (?)').run(company).lastInsertRowid;
       const uid = db
-        .prepare('INSERT INTO users (company_id, name, email, password_hash, role) VALUES (?,?,?,?,?)')
+        .prepare("INSERT INTO users (company_id, name, email, password_hash, role, terms_accepted_at) VALUES (?,?,?,?,?,datetime('now'))")
         .run(cid, name, email, hashPassword(b.password), 'admin').lastInsertRowid;
       // Projects from before company accounts existed go to the platform owner's company.
       if (PLATFORM_ADMIN_EMAIL && email === PLATFORM_ADMIN_EMAIL) {
@@ -295,6 +307,82 @@ authRouter.post(
     res.json({ ok: true });
   })
 );
+
+// ---------- forgotten password
+
+const RESET_MINUTES = 60;
+
+/** Creates a single-use reset link for a user (replacing any earlier one). */
+function createResetLink(req, userId) {
+  const base = appUrl(req);
+  if (!base) throw new AuthError(500, 'APP_URL is not configured on the server.');
+  const token = crypto.randomBytes(32).toString('base64url');
+  db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
+  db.prepare('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?,?,?)').run(
+    sha256(token), userId, new Date(Date.now() + RESET_MINUTES * 60000).toISOString()
+  );
+  return `${base}/reset-password?token=${token}`;
+}
+
+authRouter.post(
+  '/forgot',
+  wrap(async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    rateLimit(`forgot:${req.ip}`, 10, 60 * 60000);
+    rateLimit(`forgot:${email}`, 3, 60 * 60000);
+    if (!isEmail(email)) throw new AuthError(400, 'Enter a valid email address.');
+    const u = db
+      .prepare('SELECT u.*, c.status AS company_status FROM users u JOIN companies c ON c.id = u.company_id WHERE u.email = ?')
+      .get(email);
+    // Same answer whether or not the account exists, so the form can't be used to discover accounts.
+    if (u && u.company_status === 'active') {
+      try {
+        const link = createResetLink(req, u.id);
+        await sendMail({ to: u.email, ...resetEmail({ name: u.name, link, minutes: RESET_MINUTES }) });
+      } catch (e) {
+        console.error('Password reset email failed:', e.message);
+      }
+    }
+    res.json({ ok: true });
+  })
+);
+
+authRouter.post(
+  '/reset',
+  wrap((req, res) => {
+    rateLimit(`reset:${req.ip}`, 20);
+    const token = String(req.body?.token || '');
+    checkPassword(req.body?.password);
+    const row = db
+      .prepare(
+        `SELECT pr.user_id, c.status FROM password_resets pr JOIN users u ON u.id = pr.user_id JOIN companies c ON c.id = u.company_id
+         WHERE pr.token_hash = ? AND pr.expires_at > ?`
+      )
+      .get(sha256(token), new Date().toISOString());
+    if (!row) throw new AuthError(400, 'This reset link is invalid or has expired. Please request a new one.');
+    if (row.status !== 'active') throw new AuthError(403, 'This company account is suspended. Please contact support.');
+    tx(() => {
+      db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hashPassword(req.body.password), row.user_id);
+      db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.user_id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+    });
+    startSession(req, res, row.user_id);
+    res.json({ ok: true });
+  })
+);
+
+// ---------- details shown on the Terms / Privacy pages (public)
+
+authRouter.get('/legal', (_req, res) => {
+  res.json({
+    business_name: process.env.LEGAL_BUSINESS_NAME || '[Your business name]',
+    contact_email: process.env.LEGAL_CONTACT_EMAIL || PLATFORM_ADMIN_EMAIL || '[contact email]',
+    governing_law: process.env.LEGAL_GOVERNING_LAW || '[country / state]',
+    effective_date: process.env.LEGAL_EFFECTIVE_DATE || '[date]',
+    ai_enabled: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
+    mail_enabled: mailEnabled(),
+  });
+});
 
 // ---------- team management (company admins)
 
@@ -381,6 +469,18 @@ authRouter.get('/admin/companies', requireUser, requirePlatformAdmin, (_req, res
   const unassigned = db.prepare('SELECT COUNT(*) n FROM projects WHERE company_id IS NULL').get().n;
   res.json({ companies: rows.map((r) => ({ ...r })), unassigned_projects: unassigned });
 });
+
+// Lets the platform owner rescue a company admin who is locked out (works without email).
+authRouter.post(
+  '/admin/companies/:cid/reset-link',
+  requireUser,
+  requirePlatformAdmin,
+  wrap((req, res) => {
+    const u = db.prepare("SELECT * FROM users WHERE company_id = ? AND role = 'admin' ORDER BY id LIMIT 1").get(req.params.cid);
+    if (!u) throw new AuthError(404, 'This company has no admin user.');
+    res.json({ email: u.email, name: u.name, link: createResetLink(req, u.id), minutes: RESET_MINUTES });
+  })
+);
 
 authRouter.put(
   '/admin/companies/:cid',
