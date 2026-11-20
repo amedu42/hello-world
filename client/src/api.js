@@ -12,6 +12,10 @@ async function request(method, url, body) {
   } catch {
     /* empty body */
   }
+  if (res.status === 401 && !url.startsWith('/api/auth/')) {
+    // Session expired or logged out elsewhere: send the app back to the login screen.
+    window.dispatchEvent(new Event('sp:unauthorized'));
+  }
   if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
   return data;
 }

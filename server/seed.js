@@ -2,6 +2,15 @@
 import { db, tx, refreshProject, decodeReport } from './db.js';
 import { parseProgramme } from './programme.js';
 import { templateSummary } from './ai.js';
+import { hashPassword } from './auth.js';
+
+const DEMO_EMAIL = 'demo@example.com';
+const DEMO_PASSWORD = 'demo-password';
+let demoCompany = db.prepare('SELECT company_id FROM users WHERE email = ?').get(DEMO_EMAIL)?.company_id;
+if (!demoCompany) {
+  demoCompany = db.prepare('INSERT INTO companies (name) VALUES (?)').run('BuildRight Construction (demo)').lastInsertRowid;
+  db.prepare('INSERT INTO users (company_id, name, email, password_hash, role) VALUES (?,?,?,?,?)').run(demoCompany, 'J. Okafor', DEMO_EMAIL, hashPassword(DEMO_PASSWORD), 'admin');
+}
 
 const parsed = await parseProgramme('samples/sample-programme.csv', 'sample-programme.csv');
 
@@ -13,8 +22,8 @@ const activities = parsed.activities.map((a) => ({ ...a, start_date: shift(a.sta
 
 const projectId = tx(() => {
   const pid = db
-    .prepare('INSERT INTO projects (name, code, client, location, contractor, supervisor, start_date, end_date, description) VALUES (?,?,?,?,?,?,?,?,?)')
-    .run('Riverside Office Block (demo)', 'RVB-01', 'Acme Holdings Ltd', 'Plot 14, Riverside Drive', 'BuildRight Construction', 'J. Okafor', shift('2026-01-05'), shift('2026-08-31'), 'Two-storey reinforced concrete office building with steel roof.')
+    .prepare('INSERT INTO projects (company_id, name, code, client, location, contractor, supervisor, start_date, end_date, description) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(demoCompany, 'Riverside Office Block (demo)', 'RVB-01', 'Acme Holdings Ltd', 'Plot 14, Riverside Drive', 'BuildRight Construction', 'J. Okafor', shift('2026-01-05'), shift('2026-08-31'), 'Two-storey reinforced concrete office building with steel roof.')
     .lastInsertRowid;
   const ins = db.prepare('INSERT INTO activities (project_id, code, name, section, start_date, end_date, weight, sort_order) VALUES (?,?,?,?,?,?,?,?)');
   activities.forEach((a, i) => ins.run(pid, a.code, a.name, a.section, a.start_date, a.end_date, a.weight, i + 1));
@@ -63,4 +72,4 @@ for (const r of db.prepare('SELECT * FROM reports WHERE project_id = ? ORDER BY 
   db.prepare("UPDATE reports SET summary = ?, summary_source = 'template' WHERE id = ?").run(summary, r.id);
   prevOverall = r.overall_progress;
 }
-console.log(`Seeded demo project #${projectId} with ${activities.length} activities and ${days.length} daily reports.`);
+console.log(`Seeded demo project #${projectId} with ${activities.length} activities and ${days.length} daily reports.\nLog in as ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);

@@ -7,6 +7,7 @@ import { db, tx, decodeReport, computeOverall, refreshProject, UPLOAD_DIR } from
 import { parseProgramme } from './programme.js';
 import { renderReportPdf } from './pdf.js';
 import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, templateSummary, generateInsights } from './ai.js';
+import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -14,26 +15,13 @@ app.disable('x-powered-by');
 // Health check for the host (no password, reveals nothing).
 app.get('/healthz', (_req, res) => res.send('ok'));
 
-// Shared-password protection: when APP_PASSWORD is set, every page, API call, photo and PDF
-// requires it (HTTP Basic auth – the browser asks once; any username is accepted).
-const APP_PASSWORD = process.env.APP_PASSWORD || '';
-if (APP_PASSWORD) {
-  const expected = crypto.createHash('sha256').update(APP_PASSWORD).digest();
-  app.use((req, res, next) => {
-    const [scheme, encoded] = (req.headers.authorization || '').split(' ');
-    if (scheme === 'Basic' && encoded) {
-      const decoded = Buffer.from(encoded, 'base64').toString('utf8');
-      const given = decoded.slice(decoded.indexOf(':') + 1);
-      if (crypto.timingSafeEqual(crypto.createHash('sha256').update(given).digest(), expected)) return next();
-    }
-    res.set('WWW-Authenticate', 'Basic realm="SitePulse", charset="UTF-8"');
-    res.status(401).send('Password required');
-  });
-} else if (process.env.NODE_ENV === 'production') {
-  console.warn('WARNING: APP_PASSWORD is not set – anyone who can reach this server can view and change all data.');
-}
-
+app.set('trust proxy', 1); // behind Render's proxy: lets secure cookies and req.ip work
 app.use(express.json({ limit: '5mb' }));
+app.use(loadSession);
+app.use(sameOrigin);
+app.use('/api/auth', authRouter);
+// Everything else under /api and /uploads needs a logged-in user; data is scoped to their company.
+app.use(['/api', '/uploads'], requireUser);
 
 const storage = multer.diskStorage({
   destination: UPLOAD_DIR,
@@ -58,11 +46,10 @@ class HttpError extends Error {
 }
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-function getProject(id) {
-  const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
-  if (!p) throw new HttpError(404, 'Project not found');
-  return { ...p };
-}
+const getProject = (req, id) => companyProject(req, id);
+const requireCompanyAdmin = (req) => {
+  if (req.user.role !== 'admin') throw new HttpError(403, 'Only company admins can do this.');
+};
 
 /** Planned % complete for an activity on a given date, from its programme dates (linear). */
 function plannedPct(a, on = today()) {
@@ -98,16 +85,16 @@ app.get('/api/status', (_req, res) => res.json({ ai: aiEnabled() }));
 
 // ------------------------------------------------------------------ Projects
 
-app.get('/api/projects', (_req, res) => {
+app.get('/api/projects', (req, res) => {
   const rows = db
     .prepare(
       `SELECT p.*,
         (SELECT COUNT(*) FROM activities a WHERE a.project_id = p.id) AS activity_count,
         (SELECT COUNT(*) FROM reports r WHERE r.project_id = p.id) AS report_count,
         (SELECT MAX(report_date) FROM reports r WHERE r.project_id = p.id) AS last_report
-       FROM projects p ORDER BY p.created_at DESC, p.id DESC`
+       FROM projects p WHERE p.company_id = ? ORDER BY p.created_at DESC, p.id DESC`
     )
-    .all();
+    .all(req.company.id);
   res.json(rows.map((p) => ({ ...p, overall_progress: computeOverall(p.id) })));
 });
 
@@ -117,12 +104,14 @@ app.post('/api/projects', (req, res) => {
   const b = req.body || {};
   if (!b.name?.trim()) throw new HttpError(400, 'Project name is required');
   const vals = PROJECT_FIELDS.map((f) => (b[f] ?? '').toString().trim() || null);
-  const r = db.prepare(`INSERT INTO projects (${PROJECT_FIELDS.join(',')}) VALUES (${PROJECT_FIELDS.map(() => '?').join(',')})`).run(...vals);
-  res.status(201).json(getProject(r.lastInsertRowid));
+  const r = db
+    .prepare(`INSERT INTO projects (company_id, ${PROJECT_FIELDS.join(',')}) VALUES (?, ${PROJECT_FIELDS.map(() => '?').join(',')})`)
+    .run(req.company.id, ...vals);
+  res.status(201).json(getProject(req, r.lastInsertRowid));
 });
 
 app.get('/api/projects/:id', (req, res) => {
-  const p = getProject(req.params.id);
+  const p = getProject(req, req.params.id);
   const activities = listActivities(p.id);
   const reports = db
     .prepare(
@@ -142,7 +131,7 @@ app.get('/api/projects/:id', (req, res) => {
 });
 
 app.put('/api/projects/:id', (req, res) => {
-  getProject(req.params.id);
+  getProject(req, req.params.id);
   const b = req.body || {};
   if (b.name !== undefined && !String(b.name).trim()) throw new HttpError(400, 'Project name is required');
   const sets = PROJECT_FIELDS.filter((f) => b[f] !== undefined);
@@ -152,11 +141,12 @@ app.put('/api/projects/:id', (req, res) => {
       req.params.id
     );
   }
-  res.json(getProject(req.params.id));
+  res.json(getProject(req, req.params.id));
 });
 
 app.delete('/api/projects/:id', (req, res) => {
-  getProject(req.params.id);
+  getProject(req, req.params.id);
+  requireCompanyAdmin(req);
   const files = db
     .prepare('SELECT ph.filename FROM photos ph JOIN reports r ON r.id = ph.report_id WHERE r.project_id = ?')
     .all(req.params.id);
@@ -171,7 +161,7 @@ app.post(
   '/api/projects/:id/programme/preview',
   programmeUpload.single('file'),
   wrap(async (req, res) => {
-    getProject(req.params.id);
+    getProject(req, req.params.id);
     if (!req.file) throw new HttpError(400, 'No file uploaded');
     try {
       const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype);
@@ -186,7 +176,7 @@ app.post(
 );
 
 app.post('/api/projects/:id/activities/bulk', (req, res) => {
-  const p = getProject(req.params.id);
+  const p = getProject(req, req.params.id);
   const { activities = [], mode = 'append' } = req.body || {};
   const clean = activities
     .filter((a) => a?.name?.trim())
@@ -238,7 +228,7 @@ app.post('/api/projects/:id/activities/bulk', (req, res) => {
 });
 
 app.post('/api/projects/:id/activities', (req, res) => {
-  const p = getProject(req.params.id);
+  const p = getProject(req, req.params.id);
   const b = req.body || {};
   if (!b.name?.trim()) throw new HttpError(400, 'Activity name is required');
   const order = db.prepare('SELECT COALESCE(MAX(sort_order),0)+1 m FROM activities WHERE project_id = ?').get(p.id).m;
@@ -251,8 +241,7 @@ app.post('/api/projects/:id/activities', (req, res) => {
 });
 
 app.put('/api/activities/:aid', (req, res) => {
-  const a = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.aid);
-  if (!a) throw new HttpError(404, 'Activity not found');
+  const a = assertActivityAccess(req, req.params.aid);
   const b = req.body || {};
   const next = {
     code: b.code !== undefined ? b.code || null : a.code,
@@ -270,15 +259,14 @@ app.put('/api/activities/:aid', (req, res) => {
 });
 
 app.delete('/api/activities/:aid', (req, res) => {
-  const a = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.aid);
-  if (!a) throw new HttpError(404, 'Activity not found');
+  const a = assertActivityAccess(req, req.params.aid);
   db.prepare('DELETE FROM activities WHERE id = ?').run(a.id);
   refreshProject(a.project_id);
   res.json({ activities: listActivities(a.project_id), overall_progress: computeOverall(a.project_id) });
 });
 
 app.delete('/api/projects/:id/activities', (req, res) => {
-  const p = getProject(req.params.id);
+  const p = getProject(req, req.params.id);
   db.prepare('DELETE FROM activities WHERE project_id = ?').run(p.id);
   refreshProject(p.id);
   res.json({ activities: [], overall_progress: 0 });
@@ -286,7 +274,8 @@ app.delete('/api/projects/:id/activities', (req, res) => {
 
 // ------------------------------------------------------------------ Daily reports
 
-function loadReport(rid) {
+function loadReport(req, rid) {
+  assertReportAccess(req, rid);
   const row = db.prepare('SELECT * FROM reports WHERE id = ?').get(rid);
   if (!row) throw new HttpError(404, 'Report not found');
   const report = decodeReport(row);
@@ -313,8 +302,8 @@ function progressBefore(activityId, projectId, date, excludeReportId) {
 
 async function saveReport(req, res, existingId) {
   const project = existingId
-    ? getProject(db.prepare('SELECT project_id FROM reports WHERE id = ?').get(existingId)?.project_id ?? -1)
-    : getProject(req.params.id);
+    ? (assertReportAccess(req, existingId), getProject(req, db.prepare('SELECT project_id FROM reports WHERE id = ?').get(existingId).project_id))
+    : getProject(req, req.params.id);
   let data;
   try {
     data = JSON.parse(req.body?.data || '{}');
@@ -398,7 +387,7 @@ async function saveReport(req, res, existingId) {
   });
 
   // Narrative summary (AI when available, template otherwise).
-  const { report, items } = loadReport(reportId);
+  const { report, items } = loadReport(req, reportId);
   const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, date);
   const ctx = { project, report, items, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
   let summary, source = 'template', aiError = null;
@@ -413,19 +402,19 @@ async function saveReport(req, res, existingId) {
   }
   if (!summary) summary = templateSummary(ctx);
   db.prepare('UPDATE reports SET summary = ?, summary_source = ? WHERE id = ?').run(summary, source, reportId);
-  res.status(existingId ? 200 : 201).json({ ...loadReport(reportId), ai_error: aiError });
+  res.status(existingId ? 200 : 201).json({ ...loadReport(req, reportId), ai_error: aiError });
 }
 
 app.post('/api/projects/:id/reports', photoUpload.array('photos', 30), wrap((req, res) => saveReport(req, res, null)));
 app.put('/api/reports/:rid', photoUpload.array('photos', 30), wrap((req, res) => saveReport(req, res, Number(req.params.rid))));
 
 app.get('/api/reports/:rid', (req, res) => {
-  const data = loadReport(req.params.rid);
-  res.json({ ...data, project: getProject(data.report.project_id) });
+  const data = loadReport(req, req.params.rid);
+  res.json({ ...data, project: getProject(req, data.report.project_id) });
 });
 
 app.delete('/api/reports/:rid', (req, res) => {
-  const { report, photos } = loadReport(req.params.rid);
+  const { report, photos } = loadReport(req, req.params.rid);
   db.prepare('DELETE FROM reports WHERE id = ?').run(report.id);
   for (const p of photos) fs.rm(path.join(UPLOAD_DIR, p.filename), { force: true }, () => {});
   refreshProject(report.project_id);
@@ -433,8 +422,8 @@ app.delete('/api/reports/:rid', (req, res) => {
 });
 
 app.get('/api/reports/:rid/pdf', (req, res) => {
-  const data = loadReport(req.params.rid);
-  const project = getProject(data.report.project_id);
+  const data = loadReport(req, req.params.rid);
+  const project = getProject(req, data.report.project_id);
   const safe = (project.code || project.name).replace(/[^\w-]+/g, '_').slice(0, 40);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${safe}_Daily_Report_${data.report.report_date}.pdf"`);
@@ -444,8 +433,8 @@ app.get('/api/reports/:rid/pdf', (req, res) => {
 app.post(
   '/api/reports/:rid/summary',
   wrap(async (req, res) => {
-    const { report, items } = loadReport(req.params.rid);
-    const project = getProject(report.project_id);
+    const { report, items } = loadReport(req, req.params.rid);
+    const project = getProject(req, report.project_id);
     if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
     const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, report.report_date);
     try {
@@ -463,7 +452,7 @@ app.post(
 app.post(
   '/api/projects/:id/ai/parse-notes',
   wrap(async (req, res) => {
-    const p = getProject(req.params.id);
+    const p = getProject(req, req.params.id);
     if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
     const notes = String(req.body?.notes || '').trim();
     if (!notes) throw new HttpError(400, 'Type or paste your site notes first');
@@ -483,7 +472,7 @@ app.post(
 app.post(
   '/api/projects/:id/ai/insights',
   wrap(async (req, res) => {
-    const p = getProject(req.params.id);
+    const p = getProject(req, req.params.id);
     if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
     const activities = listActivities(p.id);
     const reports = db.prepare('SELECT * FROM reports WHERE project_id = ? ORDER BY report_date DESC LIMIT 14').all(p.id).map(decodeReport).reverse();
@@ -498,7 +487,12 @@ app.post(
 
 // ------------------------------------------------------------------ Static
 
-app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
+app.get('/uploads/:file', (req, res) => {
+  const photo = photoForCompany(req, req.params.file);
+  if (!photo) throw new HttpError(404, 'Not found');
+  res.set('Cache-Control', 'private, max-age=604800');
+  res.sendFile(path.join(UPLOAD_DIR, photo.filename));
+});
 const dist = path.resolve('dist');
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));

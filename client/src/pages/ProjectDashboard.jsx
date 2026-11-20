@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, fmtDate, todayISO } from '../api.js';
-import { Sparkle, useStatus } from '../App.jsx';
+import { Sparkle, useAuth, useStatus } from '../App.jsx';
 import ProgrammeUploadModal from '../components/ProgrammeUploadModal.jsx';
 import ProjectFormModal from '../components/ProjectFormModal.jsx';
 import ProgressChart from '../components/ProgressChart.jsx';
@@ -13,6 +13,7 @@ export default function ProjectDashboard() {
   const [p, setP] = useState(null);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null);
+  const { me } = useAuth();
 
   const load = useCallback(() => api.get(`/api/projects/${id}`).then(setP).catch((e) => setError(e.message)), [id]);
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function ProjectDashboard() {
             <div className="menu-list">
               <button onClick={() => setModal('edit')}>Edit project details</button>
               <button onClick={() => setModal('programme')}>Upload work programme</button>
-              <button className="danger" onClick={deleteProject}>Delete project</button>
+              {me.user.role === 'admin' && <button className="danger" onClick={deleteProject}>Delete project</button>}
             </div>
           </details>
           {todaysReport ? (

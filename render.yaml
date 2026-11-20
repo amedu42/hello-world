@@ -1,5 +1,5 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# In Render: New + → Blueprint → pick this repository. You'll be asked for APP_PASSWORD and ANTHROPIC_API_KEY.
+# In Render: New + → Blueprint → pick this repository. You'll be asked for PLATFORM_ADMIN_EMAIL and ANTHROPIC_API_KEY.
 services:
   - type: web
     name: sitepulse
@@ -15,7 +15,27 @@ services:
     envVars:
       - key: DATA_DIR
         value: /var/data
-      - key: APP_PASSWORD     # shared team password (required)
+      - key: PLATFORM_ADMIN_EMAIL  # your email: gets the platform admin page and any pre-account projects
         sync: false
       - key: ANTHROPIC_API_KEY  # optional: turns on the AI features
+        sync: false
+      # Business details shown on the Terms of Service and Privacy Policy pages
+      - key: LEGAL_BUSINESS_NAME
+        sync: false
+      - key: LEGAL_CONTACT_EMAIL
+        sync: false
+      - key: LEGAL_GOVERNING_LAW    # e.g. "Nigeria" or "England and Wales"
+        sync: false
+      - key: LEGAL_EFFECTIVE_DATE   # e.g. "1 December 2026"
+        sync: false
+      # Email for password resets (any SMTP provider). Until set, reset links are written to the Render logs.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM             # e.g. "SitePulse <no-reply@yourdomain.com>"
         sync: false
