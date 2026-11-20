@@ -30,7 +30,7 @@ export default function ProgressChart({ data }) {
   // Zoom the y-axis early in a project so small movements stay visible; always start at 0.
   const peak = Math.max(...data.flatMap((d) => [d.actual || 0, d.planned || 0]));
   const yMax = [10, 20, 40, 60, 80, 100].find((n) => peak <= n * 0.9) ?? 100;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(yMax * f));
+  const yTicks = [0, 1, 2, 3, 4, 5].map((i) => (yMax / 5) * i); // whole-number steps for every yMax
   const y = (v) => m.t + ih - (Math.min(v, yMax) / yMax) * ih;
   const path = (key) =>
     data
