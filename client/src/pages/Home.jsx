@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, fmtDate } from '../api.js';
+import { useAuth } from '../App.jsx';
 import ProjectFormModal from '../components/ProjectFormModal.jsx';
 import { ErrorNote, ProgressBar, Spinner } from '../components/ui.jsx';
 
@@ -10,6 +11,7 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState('');
   const navigate = useNavigate();
+  const { me } = useAuth();
 
   useEffect(() => {
     api.get('/api/projects').then(setProjects).catch((e) => setError(e.message));
@@ -25,7 +27,7 @@ export default function Home() {
       <div className="page-head">
         <div>
           <h1>Projects</h1>
-          <p className="muted">Select a project to open its dashboard and daily reports.</p>
+          <p className="muted">{me.company.name} · select a project to open its dashboard and daily reports.</p>
         </div>
         <button className="btn primary" onClick={() => setCreating(true)}>+ New project</button>
       </div>

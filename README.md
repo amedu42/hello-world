@@ -24,6 +24,14 @@ An AI-enabled web app for construction professionals to track project progress a
   - *Project insights*: risks and recommended actions based on the programme and the last 14 reports.
   - *Programme reading*: PDF programmes and spreadsheets with unusual layouts.
 
+## Accounts
+
+- **Companies sign up themselves** at `/signup` and become that company's admin. Each company sees only its own projects, tasks, reports, photos and PDFs.
+- **Team**: company admins add people (with a temporary password they must change on first login), change roles, reset passwords and remove users. *Admins* manage the team and can delete projects; *members* do everything else.
+- **Platform admin**: the user whose email matches `PLATFORM_ADMIN_EMAIL` gets a *Platform admin* page listing every company with usage, and can suspend or reactivate a company (suspended users are logged out and can't log in; data is kept).
+- Projects created before accounts existed are assigned to the platform admin's company when that email signs up (or at server start if it already has).
+- Passwords are hashed with scrypt; sessions are HTTP-only cookies valid for 30 days; repeated login attempts are rate-limited. There is no email-based "forgot password" yet: a company admin resets it.
+
 ## Running it
 
 Requires Node.js 22.13 or later.
@@ -31,7 +39,7 @@ Requires Node.js 22.13 or later.
 ```bash
 npm install
 cp .env.example .env        # optional: add ANTHROPIC_API_KEY to turn on AI features
-npm run seed                # optional: demo project with a programme and 6 reports
+npm run seed                # optional: demo company + project (log in as demo@example.com / demo-password)
 npm run dev                 # web on http://localhost:5173, API on :3001
 ```
 
@@ -52,11 +60,11 @@ The repo includes `render.yaml` (a Render Blueprint): a Node web service on the 
 1. Merge this code into the branch Render will deploy (the repository's default branch).
 2. In the Render dashboard: **New + → Blueprint**, connect GitHub and pick this repository.
 3. When asked, enter:
-   - `APP_PASSWORD`: the shared team password (required; the browser asks for it, any username works).
+   - `PLATFORM_ADMIN_EMAIL`: your email. Then sign up at your site with that email to get the platform admin page.
    - `ANTHROPIC_API_KEY`: optional, turns on the AI features.
 4. Click **Apply**. The first build takes a few minutes; the app is then at `https://sitepulse-xxxx.onrender.com`.
 
-Every push to that branch redeploys automatically; data on the disk is kept. To change the password later, edit `APP_PASSWORD` under the service's **Environment** tab.
+Every push to that branch redeploys automatically; data on the disk is kept. Environment variables can be changed later under the service's **Environment** tab.
 
 ## Structure
 
@@ -78,4 +86,3 @@ client/src/
 - One report per project per day. Opening an existing date lets you edit it, and editing or deleting a report recalculates progress.
 - Photos must be JPEG or PNG so they can be embedded in the PDF.
 - `.mpp` and `.xls` files must be exported to `.xlsx`, `.csv` or MS Project XML first.
-- Access is protected by one shared password (`APP_PASSWORD`); there are no individual user accounts yet.

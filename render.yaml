@@ -1,5 +1,5 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
-# In Render: New + → Blueprint → pick this repository. You'll be asked for APP_PASSWORD and ANTHROPIC_API_KEY.
+# In Render: New + → Blueprint → pick this repository. You'll be asked for PLATFORM_ADMIN_EMAIL and ANTHROPIC_API_KEY.
 services:
   - type: web
     name: sitepulse
@@ -15,7 +15,7 @@ services:
     envVars:
       - key: DATA_DIR
         value: /var/data
-      - key: APP_PASSWORD     # shared team password (required)
+      - key: PLATFORM_ADMIN_EMAIL  # your email: gets the platform admin page and any pre-account projects
         sync: false
       - key: ANTHROPIC_API_KEY  # optional: turns on the AI features
         sync: false
