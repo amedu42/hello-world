@@ -1,0 +1,33 @@
+{
+  "name": "sitepulse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-enabled construction project tracking and daily site reporting",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"node --watch --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server/index.js",
+    "seed": "node --disable-warning=ExperimentalWarning server/seed.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "papaparse": "^5.7.1",
+    "pdfkit": "^0.20.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.6",
+    "vite": "^8.3.8"
+  }
+}
