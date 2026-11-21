@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { Spinner } from './components/ui.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from './pages/AuthPages.jsx';
 import { LegalFooter, PrivacyPage, TermsPage } from './pages/LegalPages.jsx';
+import CompanySettings from './pages/CompanySettings.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ReportForm from './pages/ReportForm.jsx';
@@ -94,6 +95,7 @@ export default function App() {
               <div className="menu-list" onClick={(e) => e.target.closest('a,button') && e.currentTarget.parentElement.removeAttribute('open')}>
                 <Link to="/">Projects</Link>
                 <Link to="/team">Team</Link>
+                {me.user.role === 'admin' && <Link to="/settings">Company settings</Link>}
                 <Link to="/account">Your account</Link>
                 {me.platform_admin && <Link to="/admin">Platform admin</Link>}
                 <button onClick={logout}>Log out</button>
@@ -120,6 +122,7 @@ export default function App() {
               <Route path="/reports/:rid" element={<ReportView />} />
               <Route path="/reports/:rid/edit" element={<ReportForm />} />
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/settings" element={<CompanySettings />} />
               <Route path="/account" element={<AccountPage />} />
               {me.platform_admin && <Route path="/admin" element={<AdminPage />} />}
               <Route path="*" element={<p className="muted">Page not found. <Link to="/">Back to projects</Link></p>} />

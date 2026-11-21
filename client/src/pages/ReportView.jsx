@@ -163,7 +163,7 @@ export default function ReportView() {
       <section className="card">
         <h2>Site photos</h2>
         {photos.length === 0 ? <p className="muted">No photos.</p> : (
-          <div className="photo-grid">
+          <div className="photo-grid large">
             {photos.map((p) => (
               <figure key={p.id} className="photo clickable" onClick={() => setLightbox(p)}>
                 <img src={p.url} alt={p.caption || ''} loading="lazy" />

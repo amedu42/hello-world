@@ -40,6 +40,10 @@ CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `);
 
+const companyCols = db.prepare('PRAGMA table_info(companies)').all().map((c) => c.name);
+if (!companyCols.includes('logo_filename')) db.exec('ALTER TABLE companies ADD COLUMN logo_filename TEXT');
+if (!companyCols.includes('primary_color')) db.exec('ALTER TABLE companies ADD COLUMN primary_color TEXT');
+
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('terms_accepted_at')) db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
 
@@ -151,14 +155,14 @@ export function loadSession(req, _res, next) {
   if (token) {
     const row = db
       .prepare(
-        `SELECT u.*, c.name AS company_name, c.status AS company_status, s.token_hash
+        `SELECT u.*, c.name AS company_name, c.status AS company_status, c.logo_filename, c.primary_color, s.token_hash
          FROM sessions s JOIN users u ON u.id = s.user_id JOIN companies c ON c.id = u.company_id
          WHERE s.token_hash = ? AND s.expires_at > ?`
       )
       .get(sha256(token), new Date().toISOString());
     if (row && row.company_status === 'active') {
       req.user = { ...row };
-      req.company = { id: row.company_id, name: row.company_name };
+      req.company = { id: row.company_id, name: row.company_name, logo_filename: row.logo_filename, primary_color: row.primary_color };
       req.sessionHash = row.token_hash;
     }
   }
@@ -235,7 +239,12 @@ const wrap = (fn) => (req, res, next) => {
 
 authRouter.get('/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-  res.json({ user: publicUser(req.user), company: req.company, platform_admin: isPlatformAdmin(req.user) });
+  const { id, name, logo_filename, primary_color } = req.company;
+  res.json({
+    user: publicUser(req.user),
+    company: { id, name, has_logo: Boolean(logo_filename), logo_version: logo_filename || null, primary_color: primary_color || null },
+    platform_admin: isPlatformAdmin(req.user),
+  });
 });
 
 authRouter.post(
