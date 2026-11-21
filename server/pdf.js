@@ -1,46 +1,104 @@
-// Renders a daily site report to PDF with pdfkit.
+// Renders a daily site report to PDF with pdfkit, in the company's colours and with its logo.
 import PDFDocument from 'pdfkit';
 import fs from 'node:fs';
 import path from 'node:path';
 import { UPLOAD_DIR } from './db.js';
 
-const C = {
-  ink: '#1c2430',
-  muted: '#5b6675',
-  line: '#d9dee5',
-  band: '#16324f',
-  accent: '#f2a900',
-  soft: '#f3f5f8',
-  good: '#1f8a4c',
+// ------------------------------------------------------------------ colours
+
+const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const rgbToHex = (rgb) => '#' + rgb.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mix = (a, b, t) => rgbToHex(hexToRgb(a).map((v, i) => v + (hexToRgb(b)[i] - v) * t));
+function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const contrast = (a, b) => {
+  const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
 };
+
+/** Builds the report palette from a company's primary colour (falls back to SitePulse navy + amber). */
+export function reportPalette(primary) {
+  const base = { ink: '#1c2430', muted: '#5b6675', line: '#d9dee5', good: '#1f8a4c', bad: '#b42318', warn: '#b54708' };
+  if (!primary || !/^#[0-9a-f]{6}$/i.test(primary)) {
+    return { ...base, band: '#16324f', onBand: '#ffffff', onBandSub: '#cfd9e6', stripe: '#f2a900', heading: '#16324f', rule: '#f2a900', soft: '#f3f5f8', fill: '#f2a900', big: '#16324f' };
+  }
+  const p = primary.toLowerCase();
+  const onBand = contrast(p, '#ffffff') >= contrast(p, base.ink) ? '#ffffff' : base.ink;
+  // Headings and big numbers must stay readable on white: darken light brand colours until they reach 4.5:1.
+  let heading = p;
+  for (let t = 0.1; contrast(heading, '#ffffff') < 4.5 && t <= 1; t += 0.1) heading = mix(p, '#000000', t);
+  return {
+    ...base,
+    band: p,
+    onBand,
+    onBandSub: mix(onBand, p, 0.25),
+    stripe: mix(p, '#000000', 0.3),
+    heading,
+    rule: p,
+    soft: mix(p, '#ffffff', 0.9),
+    fill: p,
+    big: heading,
+  };
+}
 
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
-export function renderReportPdf({ project, report, items, photos, reportNo }, stream) {
-  const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, info: { Title: `${project.name} – Daily Report ${report.report_date}` } });
+// A5 is 148 × 210 mm = 419.5 × 595.3 pt.
+const A5_SHORT = 419.5;
+const A5_LONG = 595.3;
+
+export function renderReportPdf({ project, report, items, photos, reportNo, branding = {} }, stream) {
+  const C = reportPalette(branding.color);
+  const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, info: { Title: `${project.name} – Daily Report ${report.report_date}`, Author: branding.name || '' } });
   doc.pipe(stream);
   const L = doc.page.margins.left;
   const W = doc.page.width - L - doc.page.margins.right;
   const bottom = () => doc.page.height - doc.page.margins.bottom - 20;
+  const top = () => doc.page.margins.top;
 
   const ensure = (h) => {
     if (doc.y + h > bottom()) {
       doc.addPage();
-      doc.y = doc.page.margins.top;
+      doc.y = top();
     }
   };
 
-  // ---------- Header band
-  doc.rect(0, 0, doc.page.width, 92).fill(C.band);
-  doc.rect(0, 92, doc.page.width, 4).fill(C.accent);
-  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(18).text('DAILY SITE REPORT', L, 24, { width: W });
-  doc.font('Helvetica').fontSize(11).fillColor('#cfd9e6').text(project.name + (project.code ? `  ·  ${project.code}` : ''), L, 48, { width: W - 150 });
-  doc.text(fmtDate(report.report_date), L, 64, { width: W - 150 });
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff').text(`Report No. ${reportNo}`, L, 28, { width: W, align: 'right' });
+  // ---------- Header band (company colour, logo on a white tile so any logo stays legible)
+  const BAND = 96;
+  doc.rect(0, 0, doc.page.width, BAND).fill(C.band);
+  doc.rect(0, BAND, doc.page.width, 4).fill(C.stripe);
+  let textX = L;
+  const logo = branding.logoPath && fs.existsSync(branding.logoPath) ? branding.logoPath : null;
+  if (logo) {
+    const tileH = 64;
+    let tileW = tileH;
+    try {
+      const img = doc.openImage(logo);
+      const ratio = img.width / img.height;
+      tileW = Math.min(150, Math.max(tileH, (tileH - 12) * ratio + 12));
+      doc.roundedRect(L, 16, tileW, tileH, 6).fill('#ffffff');
+      doc.image(img, L + 6, 22, { fit: [tileW - 12, tileH - 12], align: 'center', valign: 'center' });
+      textX = L + tileW + 16;
+    } catch {
+      textX = L;
+    }
+  }
+  const textW = W - (textX - L) - 110;
+  doc.fillColor(C.onBand).font('Helvetica-Bold').fontSize(18).text('DAILY SITE REPORT', textX, 22, { width: textW });
+  doc.font('Helvetica').fontSize(10.5).fillColor(C.onBandSub);
+  doc.text(project.name + (project.code ? `  ·  ${project.code}` : ''), textX, 46, { width: textW, lineBreak: false, ellipsis: true });
+  doc.text(fmtDate(report.report_date), textX, 62, { width: textW });
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(C.onBand).text(`Report No. ${reportNo}`, L, 24, { width: W, align: 'right' });
+  if (branding.name) doc.font('Helvetica').fontSize(9).fillColor(C.onBandSub).text(branding.name, L + W - 160, 40, { width: 160, align: 'right' });
 
   // ---------- Project facts + progress box
-  doc.y = 112;
+  doc.y = BAND + 18;
   const facts = [
     ['Client', project.client],
     ['Location', project.location],
@@ -55,20 +113,20 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
     doc.font('Helvetica').fillColor(C.ink).text(v, L + 80, fy, { width: W - boxW - 100 });
     fy = Math.max(doc.y, fy + 14) + 2;
   }
-  const by = 110;
+  const by = BAND + 14;
   doc.roundedRect(L + W - boxW, by, boxW, 66, 6).fill(C.soft);
   doc.fillColor(C.muted).font('Helvetica-Bold').fontSize(8).text('OVERALL PROGRESS', L + W - boxW, by + 9, { width: boxW, align: 'center' });
-  doc.fillColor(C.band).font('Helvetica-Bold').fontSize(26).text(`${report.overall_progress ?? 0}%`, L + W - boxW, by + 22, { width: boxW, align: 'center' });
+  doc.fillColor(C.big).font('Helvetica-Bold').fontSize(26).text(`${report.overall_progress ?? 0}%`, L + W - boxW, by + 22, { width: boxW, align: 'center' });
   const pbw = boxW - 24;
-  doc.roundedRect(L + W - boxW + 12, by + 54, pbw, 5, 2.5).fill(C.line);
-  doc.roundedRect(L + W - boxW + 12, by + 54, Math.max(2, (pbw * (report.overall_progress || 0)) / 100), 5, 2.5).fill(C.accent);
+  doc.roundedRect(L + W - boxW + 12, by + 54, pbw, 5, 2.5).fill('#ffffff');
+  doc.roundedRect(L + W - boxW + 12, by + 54, Math.max(2, (pbw * (report.overall_progress || 0)) / 100), 5, 2.5).fill(C.fill);
   doc.y = Math.max(fy, by + 76) + 10;
 
   const section = (title) => {
     ensure(40);
     doc.moveDown(0.4);
-    doc.font('Helvetica-Bold').fontSize(11).fillColor(C.band).text(title.toUpperCase(), L, doc.y, { width: W });
-    doc.rect(L, doc.y + 1.5, W, 1.2).fill(C.accent);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(C.heading).text(title.toUpperCase(), L, doc.y, { width: W });
+    doc.rect(L, doc.y + 1.5, W, 1.2).fill(C.rule);
     doc.y += 8;
   };
 
@@ -78,7 +136,7 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
       const y = doc.y;
       doc.rect(L, y, W, 18).fill(C.soft);
       let x = L;
-      doc.font('Helvetica-Bold').fontSize(8).fillColor(C.muted);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(C.heading);
       for (const c of cols) {
         doc.text(c.label.toUpperCase(), x + pad, y + 5, { width: c.w * W - pad * 2, align: c.align || 'left' });
         x += c.w * W;
@@ -92,7 +150,7 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
       const h = Math.max(...cols.map((c, i) => doc.heightOfString(String(r[i] ?? ''), { width: c.w * W - pad * 2 }))) + pad * 2;
       if (doc.y + h > bottom()) {
         doc.addPage();
-        doc.y = doc.page.margins.top;
+        doc.y = top();
         drawHead();
         doc.font('Helvetica').fontSize(9).fillColor(C.ink);
       }
@@ -110,7 +168,8 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
 
   const para = (text) => {
     doc.font('Helvetica').fontSize(9.5).fillColor(C.ink);
-    ensure(doc.heightOfString(text, { width: W }) > 200 ? 60 : doc.heightOfString(text, { width: W }) + 6);
+    const h = doc.heightOfString(text, { width: W });
+    ensure(h > 200 ? 60 : h + 6);
     doc.text(text, L, doc.y, { width: W, lineGap: 2 });
     doc.y += 4;
   };
@@ -189,7 +248,7 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
       [
         { label: 'Category', w: 0.15 },
         { label: 'Description', w: 0.42 },
-        { label: 'Severity', w: 0.11, color: (r) => (r[2] === 'High' ? '#b42318' : r[2] === 'Medium' ? '#b54708' : C.ink) },
+        { label: 'Severity', w: 0.11, color: (r) => (r[2] === 'High' ? C.bad : r[2] === 'Medium' ? C.warn : C.ink) },
         { label: 'Action', w: 0.32 },
       ],
       report.issues.map((i) => [i.category, i.description, i.severity, i.action])
@@ -209,30 +268,6 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
     para(report.notes);
   }
 
-  // ---------- Photos
-  const usable = photos.filter((p) => /\.(jpe?g|png)$/i.test(p.filename) && fs.existsSync(path.join(UPLOAD_DIR, p.filename)));
-  if (usable.length) {
-    section('Site photos');
-    const gap = 12;
-    const pw = (W - gap) / 2;
-    const ph = pw * 0.72;
-    for (let i = 0; i < usable.length; i += 2) {
-      ensure(ph + 30);
-      const y = doc.y;
-      for (let j = 0; j < 2 && i + j < usable.length; j++) {
-        const p = usable[i + j];
-        const x = L + j * (pw + gap);
-        try {
-          doc.image(path.join(UPLOAD_DIR, p.filename), x, y, { fit: [pw, ph], align: 'center', valign: 'center' });
-        } catch {
-          doc.rect(x, y, pw, ph).strokeColor(C.line).stroke();
-        }
-        doc.font('Helvetica').fontSize(8).fillColor(C.muted).text(p.caption || p.original_name || '', x, y + ph + 3, { width: pw });
-      }
-      doc.y = y + ph + 22;
-    }
-  }
-
   // ---------- Sign-off
   ensure(70);
   doc.moveDown(1);
@@ -243,6 +278,39 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
   doc.text(`Prepared by: ${report.supervisor || ''}`, L, sy + 4, { width: W * 0.42 });
   doc.text('Reviewed by (Project Manager)', L + W * 0.58, sy + 4, { width: W * 0.42 });
 
+  // ---------- Photos: one per page, each as large as an A5 frame (148 × 210 mm, turned to match the
+  // photo) allows inside the page margins, never stretched or cropped. Portrait photos reach the full
+  // A5 width (148 mm); landscape photos the full content width (~182 mm).
+  const usable = photos.filter((p) => /\.(jpe?g|png)$/i.test(p.filename) && fs.existsSync(path.join(UPLOAD_DIR, p.filename)));
+  usable.forEach((p, idx) => {
+    let img;
+    try {
+      img = doc.openImage(path.join(UPLOAD_DIR, p.filename));
+    } catch {
+      return;
+    }
+    doc.addPage();
+    doc.y = top();
+    section(`Site photo ${idx + 1} of ${usable.length}`);
+    // Width/height as displayed, after EXIF rotation (orientations 5–8 swap the sides).
+    const rotated = img.orientation > 4;
+    const iw = rotated ? img.height : img.width;
+    const ih = rotated ? img.width : img.height;
+    const portrait = ih > iw;
+    const captionH = 40;
+    const fw = Math.min(portrait ? A5_SHORT : A5_LONG, W);
+    const fh = Math.min(portrait ? A5_LONG : A5_SHORT, bottom() - doc.y - captionH);
+    const s = Math.min(fw / iw, fh / ih);
+    const dw = iw * s;
+    const dh = ih * s;
+    const x = L + (W - dw) / 2;
+    const y = doc.y + 6;
+    doc.image(img, x, y, { width: dw, height: dh });
+    doc.rect(x, y, dw, dh).lineWidth(0.5).strokeColor(C.line).stroke();
+    const caption = p.caption || p.original_name || '';
+    if (caption) doc.font('Helvetica').fontSize(10).fillColor(C.ink).text(caption, x, y + dh + 8, { width: dw, align: 'center' });
+  });
+
   // ---------- Footer on every page
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -250,9 +318,11 @@ export function renderReportPdf({ project, report, items, photos, reportNo }, st
     const fy2 = doc.page.height - 30;
     const oldBottom = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
+    doc.rect(L, fy2 - 8, W, 0.6).fill(C.rule);
     doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
-    doc.text(`${project.name} · Daily Site Report · ${report.report_date}`, L, fy2, { width: W / 2, lineBreak: false });
-    doc.text(`Page ${i + 1} of ${range.count}`, L + W / 2, fy2, { width: W / 2, align: 'right', lineBreak: false });
+    const left = [branding.name, project.name, `Daily Site Report ${report.report_date}`].filter(Boolean).join(' · ');
+    doc.text(left, L, fy2, { width: W * 0.75, lineBreak: false, ellipsis: true });
+    doc.text(`Page ${i + 1} of ${range.count}`, L + W * 0.75, fy2, { width: W * 0.25, align: 'right', lineBreak: false });
     doc.page.margins.bottom = oldBottom;
   }
   doc.end();

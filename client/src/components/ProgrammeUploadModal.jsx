@@ -104,7 +104,7 @@ export default function ProgrammeUploadModal({ project, hasActivities, onClose, 
             </div>
           )}
           <div className="table-scroll tall">
-            <table className="table compact">
+            <table className="table compact stack-mobile prog-table">
               <thead>
                 <tr>
                   <th><input type="checkbox" checked={count === rows.length} onChange={(e) => setRows((rs) => rs.map((r) => ({ ...r, include: e.target.checked })))} aria-label="Select all" /></th>
@@ -114,13 +114,16 @@ export default function ProgrammeUploadModal({ project, hasActivities, onClose, 
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className={r.include ? '' : 'dim'}>
-                    <td><input type="checkbox" checked={r.include} onChange={(e) => update(i, 'include', e.target.checked)} /></td>
-                    <td className="muted">{r.code}</td>
-                    <td><input className="cell-input" value={r.name} onChange={(e) => update(i, 'name', e.target.value)} /></td>
-                    <td className="muted">{r.section}</td>
-                    <td className="nowrap">{fmtDate(r.start_date)}</td>
-                    <td className="nowrap">{fmtDate(r.end_date)}</td>
-                    <td className="num"><input className="cell-input num" type="number" min="0" step="any" value={r.weight} onChange={(e) => update(i, 'weight', e.target.value)} /></td>
+                    <td className="prog-pick">
+                      <input type="checkbox" checked={r.include} onChange={(e) => update(i, 'include', e.target.checked)} aria-label={`Include ${r.name}`} />
+                      <span className="mobile-only">{r.code ? `${r.code} · ` : ''}{r.include ? 'Included' : 'Left out'}</span>
+                    </td>
+                    <td className="muted desktop-cell">{r.code}</td>
+                    <td data-label="Activity"><input className="cell-input" value={r.name} onChange={(e) => update(i, 'name', e.target.value)} aria-label="Activity name" /></td>
+                    <td className="muted" data-label="Section">{r.section}</td>
+                    <td className="nowrap" data-label="Start">{fmtDate(r.start_date)}</td>
+                    <td className="nowrap" data-label="Finish">{fmtDate(r.end_date)}</td>
+                    <td className="num" data-label="Weight"><input className="cell-input num" type="number" min="0" step="any" value={r.weight} onChange={(e) => update(i, 'weight', e.target.value)} aria-label="Weight" /></td>
                   </tr>
                 ))}
               </tbody>

@@ -33,6 +33,12 @@ const photoUpload = multer({
   fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png)$/.test(file.mimetype)),
 });
 const programmeUpload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
+const logoUpload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png)$/.test(file.mimetype)),
+});
+const HEX = /^#[0-9a-f]{6}$/i;
 
 const today = () => new Date().toISOString().slice(0, 10);
 const round1 = (n) => Math.round(n * 10) / 10;
@@ -427,7 +433,12 @@ app.get('/api/reports/:rid/pdf', (req, res) => {
   const safe = (project.code || project.name).replace(/[^\w-]+/g, '_').slice(0, 40);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${safe}_Daily_Report_${data.report.report_date}.pdf"`);
-  renderReportPdf({ project, ...data }, res);
+  const branding = {
+    name: req.company.name,
+    color: req.company.primary_color,
+    logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+  };
+  renderReportPdf({ project, ...data, branding }, res);
 });
 
 app.post(
@@ -446,6 +457,56 @@ app.post(
     }
   })
 );
+
+// ------------------------------------------------------------------ Company branding (logo + colour on PDFs)
+
+const requireAdminRole = (req) => {
+  if (req.user.role !== 'admin') throw new HttpError(403, 'Only company admins can change company settings.');
+};
+
+app.get('/api/company/logo', (req, res) => {
+  if (!req.company.logo_filename) throw new HttpError(404, 'No logo');
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.sendFile(path.join(UPLOAD_DIR, req.company.logo_filename));
+});
+
+app.put('/api/company', (req, res) => {
+  requireAdminRole(req);
+  const b = req.body || {};
+  if (b.name !== undefined) {
+    const name = String(b.name).trim();
+    if (!name) throw new HttpError(400, 'Company name is required');
+    db.prepare('UPDATE companies SET name = ? WHERE id = ?').run(name.slice(0, 120), req.company.id);
+  }
+  if (b.primary_color !== undefined) {
+    const c = b.primary_color ? String(b.primary_color).trim() : null;
+    if (c && !HEX.test(c)) throw new HttpError(400, 'Colour must be a hex value like #1F5FA8');
+    db.prepare('UPDATE companies SET primary_color = ? WHERE id = ?').run(c ? c.toLowerCase() : null, req.company.id);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/company/logo', logoUpload.single('logo'), (req, res) => {
+  try {
+    requireAdminRole(req);
+    if (!req.file) throw new HttpError(400, 'Upload a PNG or JPEG image up to 2 MB.');
+  } catch (e) {
+    if (req.file) fs.rm(req.file.path, { force: true }, () => {});
+    throw e;
+  }
+  const old = req.company.logo_filename;
+  db.prepare('UPDATE companies SET logo_filename = ? WHERE id = ?').run(req.file.filename, req.company.id);
+  if (old) fs.rm(path.join(UPLOAD_DIR, old), { force: true }, () => {});
+  res.json({ ok: true, logo_version: req.file.filename });
+});
+
+app.delete('/api/company/logo', (req, res) => {
+  requireAdminRole(req);
+  const old = req.company.logo_filename;
+  db.prepare('UPDATE companies SET logo_filename = NULL WHERE id = ?').run(req.company.id);
+  if (old) fs.rm(path.join(UPLOAD_DIR, old), { force: true }, () => {});
+  res.json({ ok: true });
+});
 
 // ------------------------------------------------------------------ AI assistants
 

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, todayISO } from '../api.js';
 import { Sparkle, useStatus } from '../App.jsx';
 import { ErrorNote, Field, Spinner } from '../components/ui.jsx';
+import { prepareImage } from '../images.js';
 
 const WEATHER = ['Sunny', 'Partly cloudy', 'Overcast', 'Light rain', 'Heavy rain', 'Storm', 'Windy', 'Hot', 'Cold', 'Fog'];
 const ISSUE_CATS = ['Safety', 'Quality', 'Design/RFI', 'Delay', 'Resources', 'Access', 'Utilities', 'Environmental', 'Other'];
@@ -90,6 +91,8 @@ export default function ReportForm() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
 
   // ---------- load
   useEffect(() => {
@@ -194,10 +197,22 @@ export default function ReportForm() {
   };
 
   // ---------- photos
-  const addPhotos = (files) => {
-    const list = [...files].filter((f) => /^image\/(jpeg|png)$/.test(f.type));
-    if (list.length < files.length) setError('Only JPEG and PNG photos are supported (they are embedded in the PDF).');
-    setNewPhotos((ps) => [...ps, ...list.map((file) => ({ file, url: URL.createObjectURL(file), caption: '' }))]);
+  const addPhotos = async (fileList) => {
+    const files = [...fileList];
+    if (!files.length) return;
+    setPhotoBusy((n) => n + files.length);
+    const problems = [];
+    for (const f of files) {
+      try {
+        const file = await prepareImage(f);
+        setNewPhotos((ps) => [...ps, { file, url: URL.createObjectURL(file), caption: '' }]);
+      } catch (e) {
+        problems.push(e.message);
+      } finally {
+        setPhotoBusy((n) => n - 1);
+      }
+    }
+    if (problems.length) setError(problems.join(' '));
   };
 
   // ---------- submit
@@ -406,11 +421,27 @@ export default function ReportForm() {
       {/* ---------------- Photos */}
       <section className="card form-section">
         <h2>Site photos</h2>
-        <label className="dropzone small">
-          <input type="file" accept="image/jpeg,image/png" multiple capture="environment" onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
-          <strong>Add photos</strong>
-          <span className="muted">JPEG or PNG · take a photo or choose from gallery</span>
-        </label>
+        <div
+          className={`photo-drop ${dragOver ? 'over' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files); }}
+        >
+          <div className="photo-buttons">
+            <label className="btn primary">
+              <input type="file" accept="image/*" multiple hidden onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+              Choose from device
+            </label>
+            <label className="btn ghost camera-btn">
+              <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+              Take photo
+            </label>
+          </div>
+          <span className="muted small">
+            Pick photos from your gallery, files or computer drive.<span className="desktop-only"> You can also drag them here.</span> Most image formats are converted automatically.
+          </span>
+          {photoBusy > 0 && <Spinner label={`Preparing ${photoBusy} photo${photoBusy > 1 ? 's' : ''}…`} />}
+        </div>
         {(existingPhotos.length > 0 || newPhotos.length > 0) && (
           <div className="photo-grid">
             {existingPhotos.filter((p) => !removePhotoIds.includes(p.id)).map((p) => (
@@ -439,7 +470,7 @@ export default function ReportForm() {
 
       <div className="form-actions">
         <Link to={editing ? `/reports/${rid}` : `/projects/${project.id}`} className="btn ghost">Cancel</Link>
-        <button type="submit" className="btn primary lg" disabled={saving}>
+        <button type="submit" className="btn primary lg" disabled={saving || photoBusy > 0}>
           {saving ? <Spinner label={ai ? 'Saving & writing summary…' : 'Saving…'} /> : editing ? 'Save report' : 'Submit daily report'}
         </button>
       </div>
