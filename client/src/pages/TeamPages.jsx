@@ -53,14 +53,14 @@ export function TeamPage() {
       {!data ? <Spinner label="Loading…" /> : (
         <section className="card">
           <div className="table-scroll">
-            <table className="table">
+            <table className="table stack-mobile">
               <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last login</th>{isAdmin && <th />}</tr></thead>
               <tbody>
                 {data.users.map((u) => (
                   <tr key={u.id}>
-                    <td><b>{u.name}</b>{u.id === data.me && <span className="badge sm">you</span>}{u.must_change_password && <span className="badge sm">temporary password</span>}</td>
-                    <td>{u.email}</td>
-                    <td>
+                    <td className="cell-title"><b>{u.name}</b>{u.id === data.me && <span className="badge sm">you</span>}{u.must_change_password && <span className="badge sm">temporary password</span>}</td>
+                    <td data-label="Email" className="break">{u.email}</td>
+                    <td data-label="Role">
                       {isAdmin && u.id !== data.me ? (
                         <select className="inline-select" value={u.role} onChange={(e) => act(() => api.put(`/api/auth/team/${u.id}`, { role: e.target.value }), `${u.name} is now ${e.target.value === 'admin' ? 'an admin' : 'a member'}.`)}>
                           <option value="member">Member</option>
@@ -68,7 +68,7 @@ export function TeamPage() {
                         </select>
                       ) : u.role === 'admin' ? 'Admin' : 'Member'}
                     </td>
-                    <td className="muted">{fmtDateTime(u.last_login)}</td>
+                    <td className="muted" data-label="Last login">{fmtDateTime(u.last_login)}</td>
                     {isAdmin && (
                       <td className="nowrap right">
                         {u.id !== data.me && (
@@ -238,19 +238,19 @@ export function AdminPage() {
           </div>
           <section className="card">
             <div className="table-scroll">
-              <table className="table">
+              <table className="table stack-mobile">
                 <thead><tr><th>Company</th><th>Admin</th><th className="num">Users</th><th className="num">Projects</th><th className="num">Reports</th><th>Signed up</th><th>Last active</th><th>Status</th><th /></tr></thead>
                 <tbody>
                   {data.companies.map((c) => (
                     <tr key={c.id}>
-                      <td><b>{c.name}</b></td>
-                      <td className="muted">{c.admin_email}</td>
-                      <td className="num">{c.user_count}</td>
-                      <td className="num">{c.project_count}</td>
-                      <td className="num">{c.report_count}</td>
-                      <td className="nowrap">{fmtDateTime(c.created_at)}</td>
-                      <td className="nowrap">{fmtDateTime(c.last_login)}</td>
-                      <td><span className={`status-tag ${c.status === 'active' ? 'ahead' : 'behind'}`}>{c.status === 'active' ? 'Active' : 'Suspended'}</span></td>
+                      <td className="cell-title"><b>{c.name}</b></td>
+                      <td className="muted break" data-label="Admin">{c.admin_email}</td>
+                      <td className="num" data-label="Users">{c.user_count}</td>
+                      <td className="num" data-label="Projects">{c.project_count}</td>
+                      <td className="num" data-label="Reports">{c.report_count}</td>
+                      <td className="nowrap" data-label="Signed up">{fmtDateTime(c.created_at)}</td>
+                      <td className="nowrap" data-label="Last active">{fmtDateTime(c.last_login)}</td>
+                      <td data-label="Status"><span className={`status-tag ${c.status === 'active' ? 'ahead' : 'behind'}`}>{c.status === 'active' ? 'Active' : 'Suspended'}</span></td>
                       <td className="right nowrap">
                         <button className="btn ghost sm" onClick={() => resetLink(c)} title="Create a password reset link for this company's admin">Reset link</button>{' '}
                         <button className="btn ghost sm" onClick={() => toggle(c)}>{c.status === 'active' ? 'Suspend' : 'Reactivate'}</button>

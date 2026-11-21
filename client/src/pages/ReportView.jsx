@@ -93,19 +93,19 @@ export default function ReportView() {
       <section className="card">
         <h2>Activities & progress</h2>
         <div className="table-scroll">
-          <table className="table">
+          <table className="table stack-mobile">
             <thead><tr><th>Activity</th><th className="num">Previous</th><th className="num">Now</th><th className="num">Change</th><th style={{ width: '22%' }}>Progress</th><th>Remarks</th></tr></thead>
             <tbody>
               {items.map((i) => {
                 const d = Math.round((i.progress - (i.progress_before || 0)) * 10) / 10;
                 return (
                   <tr key={i.id}>
-                    <td>{i.activity_name}</td>
-                    <td className="num muted">{i.progress_before ?? 0}%</td>
-                    <td className="num"><b>{i.progress}%</b></td>
-                    <td className={`num ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted'}`}>{d > 0 ? '+' : ''}{d}%</td>
-                    <td><ProgressBar value={i.progress} /></td>
-                    <td className="muted">{i.remarks}</td>
+                    <td className="cell-title">{i.activity_name}</td>
+                    <td className="num muted" data-label="Previous">{i.progress_before ?? 0}%</td>
+                    <td className="num" data-label="Now"><b>{i.progress}%</b></td>
+                    <td className={`num ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'muted'}`} data-label="Change">{d > 0 ? '+' : ''}{d}%</td>
+                    <td data-label="Progress"><ProgressBar value={i.progress} /></td>
+                    <td className="muted" data-label="Remarks">{i.remarks}</td>
                   </tr>
                 );
               })}
@@ -190,13 +190,13 @@ function ListCard({ title, rows, cols, empty }) {
       <h2>{title}</h2>
       {rows.length === 0 ? <p className="muted">{empty}</p> : (
         <div className="table-scroll">
-          <table className="table">
+          <table className="table stack-mobile">
             <thead><tr>{cols.map(([k, l]) => <th key={k}>{l}</th>)}</tr></thead>
             <tbody>
               {rows.map((row, i) => (
                 <tr key={i}>
-                  {cols.map(([k]) => (
-                    <td key={k}>{k === 'severity' ? <span className={`sev ${String(row[k]).toLowerCase()}`}>{row[k]}</span> : row[k]}</td>
+                  {cols.map(([k, l], ci) => (
+                    <td key={k} className={ci === 0 ? 'cell-title' : ''} data-label={ci === 0 ? undefined : l}>{k === 'severity' ? <span className={`sev ${String(row[k]).toLowerCase()}`}>{row[k]}</span> : row[k]}</td>
                   ))}
                 </tr>
               ))}
