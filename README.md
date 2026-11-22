@@ -29,6 +29,7 @@ An AI-enabled web app for construction professionals to track project progress a
   - **PDF download** for one day up to 92 days (landscape, company colour and logo): stock summary (stock at start, received, used, wasted, stock at end, reorder level, status), deliveries log (supplier, delivery note, recorded by), usage and wastage log (activity, location), and totals used per programme activity, with sign-off lines.
 - **Daily report PDF** also includes the day's **attendance** (present / late / absent / on site, by trade, absentees with reasons) and **materials** (opening / received / used / wasted / closing, delivery details, usage by activity, low stock). The AI or template summary mentions both.
 - **Auto-calculated progress**: after each report, every task's progress is set from the most recent report that mentions it. Overall progress is the duration-weighted average (or weighted by a Weight/Value column, or a weight you set per task).
+- **All PDFs** carry the SitePulse logo and "Made with SitePulse" in the footer of every page (a link to the app when `APP_URL` or Render's address is known).
 - **PDF daily reports**: branded A4 report with a summary, progress table, all site details, a photo grid and sign-off lines.
 - **AI features** (Claude, optional)
   - *Quick fill from notes*: type the day in your own words; AI matches the work to programme activities and fills in the form for you to check.

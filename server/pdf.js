@@ -79,10 +79,26 @@ export function drawBrandHeader(doc, { C, branding = {}, title, lines = [], righ
   return BAND;
 }
 
-/** "Name · Project · Document" on the left and "Page x of y" on the right of every page. */
+/** The SitePulse app icon (navy tile, amber house outline), drawn as vectors at (x, y) with the given size. */
+export function drawSitePulseLogo(doc, x, y, size) {
+  const k = size / 32; // icon is designed on a 32 × 32 grid
+  doc.save();
+  doc.translate(x, y).scale(k);
+  doc.roundedRect(0, 0, 32, 32, 7).fill('#16324f');
+  doc.path('M7 23h18M10 23V13l6-4 6 4v10').lineWidth(2.6).lineJoin('round').lineCap('round').strokeColor('#f2a900').stroke();
+  doc.restore();
+}
+
+const SITEPULSE_URL = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+
+/**
+ * Footer on every page: "Company · Project · Document" on the left; the SitePulse logo with
+ * "Made with SitePulse" and "Page x of y" on the right.
+ */
 export function drawFooters(doc, C, leftParts) {
   const L = doc.page.margins.left;
   const range = doc.bufferedPageRange();
+  const made = 'Made with SitePulse';
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const W = doc.page.width - L - doc.page.margins.right;
@@ -90,9 +106,34 @@ export function drawFooters(doc, C, leftParts) {
     const oldBottom = doc.page.margins.bottom;
     doc.page.margins.bottom = 0;
     doc.rect(L, fy - 8, W, 0.6).fill(C.rule);
+
+    doc.font('Helvetica').fontSize(7.5);
+    const page = `Page ${i + 1} of ${range.count}`;
+    const pageW = doc.widthOfString(page);
+    doc.font('Helvetica-Bold');
+    const madeW = doc.widthOfString(made);
+    const ICON = 9;
+    const GAP = 4;
+    const SEP = 14;
+    const blockW = ICON + GAP + madeW + SEP + pageW;
+    const bx = L + W - blockW;
+
+    // Left: document details (truncated so it never runs into the right-hand block)
     doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
-    doc.text(leftParts.filter(Boolean).join(' · '), L, fy, { width: W * 0.75, lineBreak: false, ellipsis: true });
-    doc.text(`Page ${i + 1} of ${range.count}`, L + W * 0.75, fy, { width: W * 0.25, align: 'right', lineBreak: false });
+    const maxW = Math.max(60, bx - L - 16);
+    let left = leftParts.filter(Boolean).join(' · ');
+    if (doc.widthOfString(left) > maxW) {
+      while (left.length > 1 && doc.widthOfString(left + '…') > maxW) left = left.slice(0, -1);
+      left = left.trimEnd() + '…';
+    }
+    doc.text(left, L, fy, { lineBreak: false });
+
+    // Right: [logo] Made with SitePulse  ·  Page x of y
+    drawSitePulseLogo(doc, bx, fy - 1.5, ICON);
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#16324f').text(made, bx + ICON + GAP, fy, { lineBreak: false });
+    if (SITEPULSE_URL) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, SITEPULSE_URL);
+    doc.font('Helvetica').fillColor(C.muted).text('·', bx + ICON + GAP + madeW + SEP / 2 - 1.5, fy, { lineBreak: false });
+    doc.text(page, L + W - pageW, fy, { lineBreak: false });
     doc.page.margins.bottom = oldBottom;
   }
 }
