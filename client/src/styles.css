@@ -687,3 +687,29 @@ tr.editing td { vertical-align: middle; }
 .stock-qty { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .stock-last { grid-column: 1 / -1; }
 @media (max-width: 900px) { .mat-panel-grid { grid-template-columns: 1fr; } }
+
+/* ---------- dashboard lists: show 10 rows, scroll inside the card */
+.act-list, .report-list { max-height: none; }
+.act-list.capped, .report-list.capped { overflow-y: auto; overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; border-bottom: 1px solid var(--line-2); box-shadow: inset 0 -10px 10px -10px rgba(0, 0, 0, 0.18); }
+.scroll-hint { font-size: 12px; color: var(--muted); text-align: center; padding: 8px 16px 0; }
+.scroll-hint::before { content: '↕ '; }
+
+/* Drop-down menus are flipped left/right in App.jsx so they always stay on screen */
+.menu-list.open-right { left: 0; right: auto; }
+@media (max-width: 640px) {
+  /* Compact task rows: status sits beside the progress bar */
+  .act-progress { flex-direction: row; align-items: center; gap: 10px; }
+  .act-progress .pbar { flex: 1; }
+  .act-progress .status-dot { flex-shrink: 0; min-width: 78px; }
+  .act-row { padding-top: 9px; padding-bottom: 9px; }
+}
+@media (max-width: 640px) {
+  /* Tighter task rows so more fit in the scroll box */
+  .act-row { padding: 7px 14px; gap: 4px 10px; }
+  .act-name { font-size: 14px; line-height: 1.3; }
+  .act-meta { font-size: 11.5px; margin-top: 1px; gap: 8px; }
+  .act-pct { font-size: 15px; }
+  .act-progress .pbar { height: 6px; }
+  .act-progress .status-dot { font-size: 10.5px; min-width: 72px; }
+  .act-group-head { padding: 4px 14px; font-size: 11px; }
+}
