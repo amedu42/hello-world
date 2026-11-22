@@ -46,14 +46,106 @@ export function reportPalette(primary) {
   };
 }
 
-const fmtDate = (d) =>
+/**
+ * Company-coloured header band with the logo on a white tile (so any logo stays legible).
+ * Returns the band height; content should start below it.
+ */
+export function drawBrandHeader(doc, { C, branding = {}, title, lines = [], right }) {
+  const L = doc.page.margins.left;
+  const W = doc.page.width - L - doc.page.margins.right;
+  const BAND = 96;
+  doc.rect(0, 0, doc.page.width, BAND).fill(C.band);
+  doc.rect(0, BAND, doc.page.width, 4).fill(C.stripe);
+  let textX = L;
+  const logo = branding.logoPath && fs.existsSync(branding.logoPath) ? branding.logoPath : null;
+  if (logo) {
+    const tileH = 64;
+    try {
+      const img = doc.openImage(logo);
+      const tileW = Math.min(150, Math.max(tileH, (tileH - 12) * (img.width / img.height) + 12));
+      doc.roundedRect(L, 16, tileW, tileH, 6).fill('#ffffff');
+      doc.image(img, L + 6, 22, { fit: [tileW - 12, tileH - 12], align: 'center', valign: 'center' });
+      textX = L + tileW + 16;
+    } catch {
+      textX = L;
+    }
+  }
+  const textW = W - (textX - L) - 170;
+  doc.fillColor(C.onBand).font('Helvetica-Bold').fontSize(18).text(title, textX, 22, { width: textW + 60, lineBreak: false });
+  doc.font('Helvetica').fontSize(10.5).fillColor(C.onBandSub);
+  lines.slice(0, 2).forEach((line, i) => doc.text(line, textX, 46 + i * 16, { width: textW + 60, lineBreak: false, ellipsis: true }));
+  if (right) doc.font('Helvetica-Bold').fontSize(10).fillColor(C.onBand).text(right, L + W - 200, 24, { width: 200, align: 'right' });
+  if (branding.name) doc.font('Helvetica').fontSize(9).fillColor(C.onBandSub).text(branding.name, L + W - 200, 40, { width: 200, align: 'right' });
+  return BAND;
+}
+
+/** The SitePulse app icon (navy tile, amber house outline), drawn as vectors at (x, y) with the given size. */
+export function drawSitePulseLogo(doc, x, y, size) {
+  const k = size / 32; // icon is designed on a 32 × 32 grid
+  doc.save();
+  doc.translate(x, y).scale(k);
+  doc.roundedRect(0, 0, 32, 32, 7).fill('#16324f');
+  doc.path('M7 23h18M10 23V13l6-4 6 4v10').lineWidth(2.6).lineJoin('round').lineCap('round').strokeColor('#f2a900').stroke();
+  doc.restore();
+}
+
+const SITEPULSE_URL = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+
+/**
+ * Footer on every page: "Company · Project · Document" on the left; the SitePulse logo with
+ * "Made with SitePulse" and "Page x of y" on the right.
+ */
+export function drawFooters(doc, C, leftParts) {
+  const L = doc.page.margins.left;
+  const range = doc.bufferedPageRange();
+  const made = 'Made with SitePulse';
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    const W = doc.page.width - L - doc.page.margins.right;
+    const fy = doc.page.height - 30;
+    const oldBottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+    doc.rect(L, fy - 8, W, 0.6).fill(C.rule);
+
+    doc.font('Helvetica').fontSize(7.5);
+    const page = `Page ${i + 1} of ${range.count}`;
+    const pageW = doc.widthOfString(page);
+    doc.font('Helvetica-Bold');
+    const madeW = doc.widthOfString(made);
+    const ICON = 9;
+    const GAP = 4;
+    const SEP = 14;
+    const blockW = ICON + GAP + madeW + SEP + pageW;
+    const bx = L + W - blockW;
+
+    // Left: document details (truncated so it never runs into the right-hand block)
+    doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
+    const maxW = Math.max(60, bx - L - 16);
+    let left = leftParts.filter(Boolean).join(' · ');
+    if (doc.widthOfString(left) > maxW) {
+      while (left.length > 1 && doc.widthOfString(left + '…') > maxW) left = left.slice(0, -1);
+      left = left.trimEnd() + '…';
+    }
+    doc.text(left, L, fy, { lineBreak: false });
+
+    // Right: [logo] Made with SitePulse  ·  Page x of y
+    drawSitePulseLogo(doc, bx, fy - 1.5, ICON);
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#16324f').text(made, bx + ICON + GAP, fy, { lineBreak: false });
+    if (SITEPULSE_URL) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, SITEPULSE_URL);
+    doc.font('Helvetica').fillColor(C.muted).text('·', bx + ICON + GAP + madeW + SEP / 2 - 1.5, fy, { lineBreak: false });
+    doc.text(page, L + W - pageW, fy, { lineBreak: false });
+    doc.page.margins.bottom = oldBottom;
+  }
+}
+
+export const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
 // A5 is 148 × 210 mm = 419.5 × 595.3 pt.
 const A5_SHORT = 419.5;
 const A5_LONG = 595.3;
 
-export function renderReportPdf({ project, report, items, photos, reportNo, branding = {} }, stream) {
+export function renderReportPdf({ project, report, items, photos, reportNo, registers = {}, branding = {} }, stream) {
   const C = reportPalette(branding.color);
   const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, info: { Title: `${project.name} – Daily Report ${report.report_date}`, Author: branding.name || '' } });
   doc.pipe(stream);
@@ -69,33 +161,14 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     }
   };
 
-  // ---------- Header band (company colour, logo on a white tile so any logo stays legible)
-  const BAND = 96;
-  doc.rect(0, 0, doc.page.width, BAND).fill(C.band);
-  doc.rect(0, BAND, doc.page.width, 4).fill(C.stripe);
-  let textX = L;
-  const logo = branding.logoPath && fs.existsSync(branding.logoPath) ? branding.logoPath : null;
-  if (logo) {
-    const tileH = 64;
-    let tileW = tileH;
-    try {
-      const img = doc.openImage(logo);
-      const ratio = img.width / img.height;
-      tileW = Math.min(150, Math.max(tileH, (tileH - 12) * ratio + 12));
-      doc.roundedRect(L, 16, tileW, tileH, 6).fill('#ffffff');
-      doc.image(img, L + 6, 22, { fit: [tileW - 12, tileH - 12], align: 'center', valign: 'center' });
-      textX = L + tileW + 16;
-    } catch {
-      textX = L;
-    }
-  }
-  const textW = W - (textX - L) - 110;
-  doc.fillColor(C.onBand).font('Helvetica-Bold').fontSize(18).text('DAILY SITE REPORT', textX, 22, { width: textW });
-  doc.font('Helvetica').fontSize(10.5).fillColor(C.onBandSub);
-  doc.text(project.name + (project.code ? `  ·  ${project.code}` : ''), textX, 46, { width: textW, lineBreak: false, ellipsis: true });
-  doc.text(fmtDate(report.report_date), textX, 62, { width: textW });
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(C.onBand).text(`Report No. ${reportNo}`, L, 24, { width: W, align: 'right' });
-  if (branding.name) doc.font('Helvetica').fontSize(9).fillColor(C.onBandSub).text(branding.name, L + W - 160, 40, { width: 160, align: 'right' });
+  // ---------- Header band
+  const BAND = drawBrandHeader(doc, {
+    C,
+    branding,
+    title: 'DAILY SITE REPORT',
+    lines: [project.name + (project.code ? `  ·  ${project.code}` : ''), fmtDate(report.report_date)],
+    right: `Report No. ${reportNo}`,
+  });
 
   // ---------- Project facts + progress box
   doc.y = BAND + 18;
@@ -203,6 +276,52 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     );
   } else empty('No activities recorded.');
 
+  // ---------- Attendance register (only for projects that use it)
+  const att = registers.attendance;
+  if (att) {
+    section('Attendance');
+    if (!att.taken) {
+      empty('No attendance register was taken on this day.');
+    } else {
+      ensure(60);
+      const stats = [
+        ['Present', att.present, C.good],
+        ['Late', att.late, '#8a5a00'],
+        ['Absent', att.absent, C.bad],
+        ['On site', `${att.on_site} of ${att.present + att.late + att.absent}`, C.big],
+      ];
+      const gap = 8;
+      const bw = (W - gap * 3) / 4;
+      const y0 = doc.y;
+      stats.forEach(([label, value, col], i) => {
+        const x = L + i * (bw + gap);
+        doc.roundedRect(x, y0, bw, 38, 5).fill(C.soft);
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(C.muted).text(label.toUpperCase(), x + 8, y0 + 7, { width: bw - 16 });
+        doc.font('Helvetica-Bold').fontSize(14).fillColor(col).text(String(value), x + 8, y0 + 17, { width: bw - 16 });
+      });
+      doc.y = y0 + 46;
+      if (att.trade_counts.length) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.ink).text('On site by trade: ', L, doc.y, { continued: true, width: W });
+        doc.font('Helvetica').text(att.trade_counts.map((t) => `${t.trade} ${t.count}`).join('  ·  '));
+        doc.y += 4;
+      }
+      if (att.absentees.length) {
+        table(
+          [
+            { label: 'Absentee', w: 0.3 },
+            { label: 'Trade', w: 0.2 },
+            { label: 'Reason', w: 0.2, color: () => C.bad },
+            { label: 'Note', w: 0.3 },
+          ],
+          att.absentees.map((a) => [a.name, a.trade || 'General', a.reason_label, a.note || ''])
+        );
+      } else {
+        empty('No absentees.');
+      }
+      if (att.taken_by) doc.font('Helvetica').fontSize(7.5).fillColor(C.muted).text(`Register taken by ${att.taken_by}.`, L, doc.y, { width: W });
+    }
+  }
+
   // ---------- Weather
   const w = report.weather || {};
   section('Weather conditions');
@@ -234,13 +353,76 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     }
   }
 
-  section('Material deliveries');
-  if (report.materials?.length) {
+  // ---------- Materials: from the materials register when it has entries for the day, otherwise the
+  // report's own delivery list (older reports and projects that don't use the register).
+  const mat = registers.materials;
+  const fmtQ = (n) => (n ? String(Math.round(n * 1000) / 1000) : '–');
+  const sub = (t) => {
+    ensure(30);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(C.heading).text(t, L, doc.y + 2, { width: W });
+    doc.y += 3;
+  };
+  if (mat && mat.movement_count) {
+    section('Materials');
     table(
-      [{ label: 'Material', w: 0.32 }, { label: 'Quantity', w: 0.18 }, { label: 'Supplier', w: 0.22 }, { label: 'Notes', w: 0.28 }],
-      report.materials.map((m) => [m.material, m.quantity, m.supplier, m.notes])
+      [
+        { label: 'Material', w: 0.3 },
+        { label: 'Unit', w: 0.1 },
+        { label: 'Opening', w: 0.11, align: 'right' },
+        { label: 'Received', w: 0.11, align: 'right', color: (r) => (r[3] !== '–' ? C.good : C.muted) },
+        { label: 'Used', w: 0.1, align: 'right' },
+        { label: 'Wasted', w: 0.1, align: 'right', color: (r) => (r[5] !== '–' ? C.warn : C.muted) },
+        { label: 'Closing', w: 0.18, align: 'right', color: (r) => (r.flag ? C.bad : C.ink) },
+      ],
+      mat.rows.map((r) => {
+        const row = [r.name, r.unit, fmtQ(r.opening) === '–' ? '0' : fmtQ(r.opening), fmtQ(r.delivered), fmtQ(r.used), fmtQ(r.wasted), `${fmtQ(r.closing) === '–' ? '0' : fmtQ(r.closing)}${r.negative ? ' (check)' : r.low ? ' (low)' : ''}`];
+        row.flag = r.low || r.negative;
+        return row;
+      })
     );
-  } else empty('No deliveries recorded.');
+    if (mat.deliveries.length) {
+      sub('Deliveries received');
+      table(
+        [
+          { label: 'Material', w: 0.28 },
+          { label: 'Quantity', w: 0.14, align: 'right' },
+          { label: 'Supplier', w: 0.22 },
+          { label: 'Delivery note', w: 0.14 },
+          { label: 'Notes', w: 0.22 },
+        ],
+        mat.deliveries.map((d) => [d.material, `${fmtQ(d.quantity)} ${d.unit}`, d.supplier || '', d.reference || '', d.notes || ''])
+      );
+    }
+    if (mat.usage.length) {
+      sub('Materials used');
+      table(
+        [
+          { label: 'Material', w: 0.28 },
+          { label: 'Quantity', w: 0.14, align: 'right' },
+          { label: 'Type', w: 0.12, color: (r) => (r[2] === 'Wasted' ? C.warn : C.ink) },
+          { label: 'Activity / location', w: 0.26 },
+          { label: 'Notes', w: 0.2 },
+        ],
+        mat.usage.map((u) => [u.material, `${fmtQ(u.quantity)} ${u.unit}`, u.type === 'wasted' ? 'Wasted' : 'Used', [u.activity_name, u.location].filter(Boolean).join(' – '), u.notes || ''])
+      );
+    }
+  } else {
+    section('Material deliveries');
+    if (report.materials?.length) {
+      table(
+        [{ label: 'Material', w: 0.32 }, { label: 'Quantity', w: 0.18 }, { label: 'Supplier', w: 0.22 }, { label: 'Notes', w: 0.28 }],
+        report.materials.map((m) => [m.material, m.quantity, m.supplier, m.notes])
+      );
+    } else empty(mat ? 'No materials received or used.' : 'No deliveries recorded.');
+  }
+  if (mat?.low?.length) {
+    ensure(24);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.bad).text('Low stock at end of day: ', L, doc.y, { continued: true, width: W });
+    doc.font('Helvetica').fillColor(C.ink).text(
+      mat.low.map((l) => `${l.name} ${fmtQ(l.stock) === '–' ? 0 : fmtQ(l.stock)} ${l.unit}${l.reorder_level != null ? ` (reorder at ${l.reorder_level})` : ''}`).join('; ')
+    );
+    doc.y += 4;
+  }
 
   section('Site issues');
   if (report.issues?.length) {
@@ -312,18 +494,6 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
   });
 
   // ---------- Footer on every page
-  const range = doc.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i);
-    const fy2 = doc.page.height - 30;
-    const oldBottom = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc.rect(L, fy2 - 8, W, 0.6).fill(C.rule);
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
-    const left = [branding.name, project.name, `Daily Site Report ${report.report_date}`].filter(Boolean).join(' · ');
-    doc.text(left, L, fy2, { width: W * 0.75, lineBreak: false, ellipsis: true });
-    doc.text(`Page ${i + 1} of ${range.count}`, L + W * 0.75, fy2, { width: W * 0.25, align: 'right', lineBreak: false });
-    doc.page.margins.bottom = oldBottom;
-  }
+  drawFooters(doc, C, [branding.name, project.name, `Daily Site Report ${report.report_date}`]);
   doc.end();
 }

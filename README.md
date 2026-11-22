@@ -16,7 +16,20 @@ An AI-enabled web app for construction professionals to track project progress a
   - Cumulative % progress per activity (number box + slider), showing the previous % and the planned %.
   - Weather, labour, plant & equipment, material deliveries, visitors, site issues (category / severity / action), site photos with captions and notes.
   - Drafts are saved in the browser until you submit.
+- **Daily attendance register** (each morning)
+  - A workforce list per project (name, trade, employer/subcontractor, phone). Add people one at a time or paste a list (one per line, `Name, Trade, Employer, Phone`, or rows copied from Excel). People who leave are marked as left and keep their history.
+  - The supervisor marks each worker **Present**, **Late** (with arrival time) or **Absent** (reason: sick, on leave, no-show, suspended, training/off site, other, plus a note). "Mark everyone present" fills in the rest. Earlier days can be opened and corrected.
+  - **PDF downloads** (in the company's colours and logo): a day's register (everyone by trade with status, arrival time, reason and note, absentees, notes, sign-off), and a period register for up to 31 days (landscape sheet: names × dates with P / L / A, each person's totals and attendance %, daily on-site counts, and every absence with its reason).
+  - The dashboard's Attendance panel shows today's present/late/absent counts, the absentees with their reasons, and a 14-day chart. The evening daily report's *Labour on site* is pre-filled from that morning's register.
+- **Daily materials register**
+  - A materials list per project (name, unit, stock on site when you start, optional reorder level). Add one at a time or paste a list (`Name, Unit, Stock, Reorder level`).
+  - Each day record **deliveries** (quantity, supplier, delivery note no., condition notes), **usage** (quantity, programme activity, location) and **wastage / damage**. "Save & add another" for quick entry.
+  - The register shows each material's opening, received, used, wasted and closing stock for any date, plus stock on hand. Low stock is flagged, and recording usage beyond the recorded stock gives a warning (usually a missing delivery).
+  - The dashboard's Materials panel shows today's movements and low-stock items.
+  - **PDF download** for one day up to 92 days (landscape, company colour and logo): stock summary (stock at start, received, used, wasted, stock at end, reorder level, status), deliveries log (supplier, delivery note, recorded by), usage and wastage log (activity, location), and totals used per programme activity, with sign-off lines.
+- **Daily report PDF** also includes the day's **attendance** (present / late / absent / on site, by trade, absentees with reasons) and **materials** (opening / received / used / wasted / closing, delivery details, usage by activity, low stock). The AI or template summary mentions both.
 - **Auto-calculated progress**: after each report, every task's progress is set from the most recent report that mentions it. Overall progress is the duration-weighted average (or weighted by a Weight/Value column, or a weight you set per task).
+- **All PDFs** carry the SitePulse logo and "Made with SitePulse" in the footer of every page (a link to the app when `APP_URL` or Render's address is known).
 - **PDF daily reports**: branded A4 report with a summary, progress table, all site details, a photo grid and sign-off lines.
 - **AI features** (Claude, optional)
   - *Quick fill from notes*: type the day in your own words; AI matches the work to programme activities and fills in the form for you to check.

@@ -4,7 +4,9 @@ import { api } from './api.js';
 import { Spinner } from './components/ui.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from './pages/AuthPages.jsx';
 import { LegalFooter, PrivacyPage, TermsPage } from './pages/LegalPages.jsx';
+import AttendancePage from './pages/AttendancePage.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
+import MaterialsPage from './pages/MaterialsPage.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ReportForm from './pages/ReportForm.jsx';
@@ -119,6 +121,8 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPasswordPage onDone={reload} />} />
               <Route path="/projects/:id" element={<ProjectDashboard />} />
               <Route path="/projects/:id/reports/new" element={<ReportForm />} />
+              <Route path="/projects/:id/attendance" element={<AttendancePage />} />
+              <Route path="/projects/:id/materials" element={<MaterialsPage />} />
               <Route path="/reports/:rid" element={<ReportView />} />
               <Route path="/reports/:rid/edit" element={<ReportForm />} />
               <Route path="/team" element={<TeamPage />} />

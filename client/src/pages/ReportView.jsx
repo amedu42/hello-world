@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, fmtDate } from '../api.js';
 import { Sparkle, useStatus } from '../App.jsx';
 import { ErrorNote, ProgressBar, Spinner } from '../components/ui.jsx';
+import { fmtQty } from './MaterialsPage.jsx';
 
 export default function ReportView() {
   const { rid } = useParams();
@@ -20,7 +21,7 @@ export default function ReportView() {
 
   if (error && !data) return <ErrorNote error={error} />;
   if (!data) return <Spinner label="Loading report…" />;
-  const { report: r, items, photos, project, reportNo } = data;
+  const { report: r, items, photos, project, reportNo, registers = {} } = data;
   const w = r.weather || {};
   const labourTotal = r.labour.reduce((s, l) => s + (Number(l.count) || 0), 0);
 
@@ -114,6 +115,8 @@ export default function ReportView() {
         </div>
       </section>
 
+      <AttendanceSection att={registers.attendance} projectId={project.id} date={r.report_date} />
+
       <div className="grid-2 align-start">
         <section className="card">
           <h2>Weather</h2>
@@ -150,7 +153,11 @@ export default function ReportView() {
       </div>
 
       <ListCard title="Site issues" rows={r.issues} empty="No issues reported." cols={[['category', 'Category'], ['description', 'Description'], ['severity', 'Severity'], ['action', 'Action']]} />
-      <ListCard title="Material deliveries" rows={r.materials} empty="No deliveries recorded." cols={[['material', 'Material'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['notes', 'Notes']]} />
+      {registers.materials?.movement_count ? (
+        <MaterialsSection mat={registers.materials} projectId={project.id} date={r.report_date} />
+      ) : (
+        <ListCard title="Material deliveries" rows={r.materials} empty={registers.materials ? 'No materials received or used.' : 'No deliveries recorded.'} cols={[['material', 'Material'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['notes', 'Notes']]} />
+      )}
       <ListCard title="Visitors" rows={r.visitors} empty="No visitors recorded." cols={[['name', 'Name'], ['organisation', 'Organisation'], ['purpose', 'Purpose'], ['time', 'Time']]} />
 
       {r.notes && (
@@ -204,6 +211,70 @@ function ListCard({ title, rows, cols, empty }) {
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+function AttendanceSection({ att, projectId, date }) {
+  if (!att) return null;
+  const link = `/projects/${projectId}/attendance?date=${date}`;
+  return (
+    <section className="card">
+      <div className="row between wrap gap">
+        <h2>Attendance</h2>
+        <Link className="btn ghost sm" to={link}>{att.taken ? 'Open register' : 'Take register'}</Link>
+      </div>
+      {!att.taken ? (
+        <p className="muted">No attendance register was taken on this day.</p>
+      ) : (
+        <>
+          <div className="att-big">
+            <div><span className="n">{att.present}</span><span className="l">present</span></div>
+            <div className="late"><span className="n">{att.late}</span><span className="l">late</span></div>
+            <div className="absent"><span className="n">{att.absent}</span><span className="l">absent</span></div>
+          </div>
+          <p className="small"><b>{att.on_site}</b> on site · {att.trade_counts.map((t) => `${t.trade} ${t.count}`).join(' · ')}</p>
+          {att.absentees.length > 0 && (
+            <ul className="absentee-list">
+              {att.absentees.map((a, i) => (
+                <li key={i}><b>{a.name}</b> <span className="muted">· {a.trade || 'General'}</span><span className={`reason ${a.reason ? '' : 'missing'}`}>{a.reason_label}</span>{a.note && <span className="muted small"> – {a.note}</span>}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function MaterialsSection({ mat, projectId, date }) {
+  return (
+    <section className="card">
+      <div className="row between wrap gap">
+        <h2>Materials</h2>
+        <Link className="btn ghost sm" to={`/projects/${projectId}/materials?date=${date}`}>Open register</Link>
+      </div>
+      <div className="table-scroll">
+        <table className="table stack-mobile">
+          <thead><tr><th>Material</th><th className="num">Opening</th><th className="num">Received</th><th className="num">Used</th><th className="num">Wasted</th><th className="num">Closing</th></tr></thead>
+          <tbody>
+            {mat.rows.map((r) => (
+              <tr key={r.material_id}>
+                <td className="cell-title">{r.name} <span className="muted small">({r.unit})</span></td>
+                <td className="num" data-label="Opening">{fmtQty(r.opening)}</td>
+                <td className="num pos" data-label="Received">{r.delivered ? `+${fmtQty(r.delivered)}` : '–'}</td>
+                <td className="num" data-label="Used">{r.used ? `−${fmtQty(r.used)}` : '–'}</td>
+                <td className="num" data-label="Wasted">{r.wasted ? `−${fmtQty(r.wasted)}` : '–'}</td>
+                <td className="num" data-label="Closing"><b className={r.low || r.negative ? 'neg' : ''}>{fmtQty(r.closing)}</b>{r.negative ? <span className="stock-tag bad">check</span> : r.low ? <span className="stock-tag low">low</span> : null}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {mat.deliveries.length > 0 && (
+        <p className="small"><b>Received:</b> {mat.deliveries.map((d) => `${fmtQty(d.quantity)} ${d.unit} ${d.material}${d.supplier ? ` from ${d.supplier}` : ''}${d.reference ? ` (note ${d.reference})` : ''}`).join('; ')}.</p>
+      )}
+      {mat.low.length > 0 && <p className="small neg"><b>Low stock:</b> {mat.low.map((l) => `${l.name} ${fmtQty(l.stock)} ${l.unit}`).join('; ')}.</p>}
     </section>
   );
 }

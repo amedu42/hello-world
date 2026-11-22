@@ -148,9 +148,9 @@ const SummarySchema = z.object({
   summary: z.string().describe('2-4 short paragraphs of plain text, no markdown'),
 });
 
-export async function generateReportSummary({ project, report, items, overall, previousOverall }) {
+export async function generateReportSummary({ project, report, items, overall, previousOverall, registers }) {
   const system = `You write the executive summary at the top of a construction daily site report, for the project manager and client.
-Plain, factual, professional site-report English. Lead with the work done and the movement in overall progress, then weather impact, resources and deliveries, then issues needing attention with any actions. Mention visitors only if notable.
+Plain, factual, professional site-report English. Lead with the work done and the movement in overall progress, then weather impact, attendance and absentees, materials received and used (mention any low stock), then issues needing attention with any actions. Mention visitors only if notable.
 Use only the facts given. No markdown, headings or bullet points. Keep it under 180 words.`;
   const payload = {
     project: { name: project.name, code: project.code, location: project.location },
@@ -165,6 +165,12 @@ Use only the facts given. No markdown, headings or bullet points. Keep it under 
     visitors: report.visitors,
     issues: report.issues,
     other_notes: report.notes,
+    attendance_register: registers?.attendance?.taken
+      ? { present: registers.attendance.present, late: registers.attendance.late, absent: registers.attendance.absent, absentees: registers.attendance.absentees.map((a) => `${a.name} (${a.reason_label})`) }
+      : undefined,
+    materials_register: registers?.materials?.rows?.length
+      ? registers.materials.rows.map((r) => ({ material: r.name, unit: r.unit, received: r.delivered, used: r.used, wasted: r.wasted, closing_stock: r.closing, low_stock: r.low }))
+      : undefined,
   };
   const out = await structured({
     system,
@@ -177,7 +183,7 @@ Use only the facts given. No markdown, headings or bullet points. Keep it under 
 }
 
 /** Template narrative used when AI is not configured or fails. */
-export function templateSummary({ project, report, items, overall, previousOverall }) {
+export function templateSummary({ project, report, items, overall, previousOverall, registers }) {
   const parts = [];
   const delta = previousOverall != null ? Math.round((overall - previousOverall) * 10) / 10 : null;
   parts.push(
@@ -191,7 +197,12 @@ export function templateSummary({ project, report, items, overall, previousOvera
   if (w.condition) parts.push(`Weather: ${w.condition}${w.impact ? ` – ${w.impact}` : ''}${w.hours_lost ? ` (${w.hours_lost} h lost)` : ''}.`);
   const labour = (report.labour || []).reduce((s, l) => s + (Number(l.count) || 0), 0);
   if (labour) parts.push(`${labour} operatives on site.`);
-  if (report.materials?.length) parts.push(`Deliveries: ${report.materials.map((m) => m.material).join(', ')}.`);
+  const att = registers?.attendance;
+  if (att?.taken) parts.push(`Attendance: ${att.on_site} on site (${att.late} late), ${att.absent} absent.`);
+  const mat = registers?.materials;
+  if (mat?.deliveries?.length) parts.push(`Materials received: ${mat.deliveries.map((d) => `${d.material} ${d.quantity} ${d.unit}`).join(', ')}.`);
+  else if (report.materials?.length) parts.push(`Deliveries: ${report.materials.map((m) => m.material).join(', ')}.`);
+  if (mat?.low?.length) parts.push(`Low stock: ${mat.low.map((l) => l.name).join(', ')}.`);
   if (report.issues?.length) parts.push(`${report.issues.length} site issue(s) recorded: ${report.issues.map((i) => i.description).join('; ')}.`);
   return parts.join(' ');
 }
