@@ -578,8 +578,24 @@ app.get('/uploads/:file', (req, res) => {
 });
 const dist = path.resolve('dist');
 if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get(/^\/(?!api|uploads).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  app.use(
+    express.static(dist, {
+      setHeaders: (res, file) => {
+        const name = path.basename(file);
+        if (name === 'sw.js' || name === 'index.html' || name.endsWith('.webmanifest')) {
+          // Always check for a newer version so installed apps update straight away.
+          res.setHeader('Cache-Control', 'no-cache');
+        } else if (file.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // file names change every release
+        }
+        if (name === 'sw.js') res.setHeader('Service-Worker-Allowed', '/');
+      },
+    })
+  );
+  app.get(/^\/(?!api|uploads).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(dist, 'index.html'));
+  });
 }
 
 app.use((err, _req, res, _next) => {
