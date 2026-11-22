@@ -37,6 +37,14 @@ An AI-enabled web app for construction professionals to track project progress a
   - *Project insights*: risks and recommended actions based on the programme and the last 14 reports.
   - *Programme reading*: PDF programmes and spreadsheets with unusual layouts.
 
+## Install as an app
+
+SitePulse is an installable web app (PWA). In Chrome on Android, open the site and choose **Install app** (menu ⋮ → *Install app* or *Add to home screen*); on iPhone, Safari → Share → *Add to Home Screen*; on a computer, the install icon in Chrome/Edge's address bar. It then opens full screen from its own icon.
+
+- `client/public/manifest.webmanifest`: name, colours, start page, icons (`client/public/icons/`, including maskable icons for Android).
+- `client/public/sw.js`: service worker. It caches only the app's code, icons and an offline page, never API data, photos or PDFs, so everything shown is live; with no connection it shows `offline.html`.
+- The server sends `sw.js`, `index.html` and the manifest with `Cache-Control: no-cache` so installed apps pick up new releases immediately; hashed files in `/assets` are cached for a year.
+
 ## Accounts
 
 - **Companies sign up themselves** at `/signup` and become that company's admin. Each company sees only its own projects, tasks, reports, photos and PDFs.
