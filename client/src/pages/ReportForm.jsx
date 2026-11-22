@@ -92,6 +92,7 @@ export default function ReportForm() {
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(0);
+  const [labourFrom, setLabourFrom] = useState(null);
   const [dragOver, setDragOver] = useState(false);
 
   // ---------- load
@@ -134,6 +135,25 @@ export default function ReportForm() {
       }
     })();
   }, [editing, rid, projectIdParam]);
+
+  // ---------- pre-fill labour from that morning's attendance register (new reports, empty labour only)
+  const reportDate = form?.report_date;
+  const labourEmpty = !form?.labour?.length;
+  useEffect(() => {
+    if (editing || !project || !reportDate || !labourEmpty) return;
+    let cancelled = false;
+    api
+      .get(`/api/projects/${project.id}/attendance/${reportDate}/summary`)
+      .then(({ summary }) => {
+        if (cancelled || !summary || !summary.trade_counts.length) return;
+        setForm((f) => (f.labour.length ? f : { ...f, labour: summary.trade_counts.map((t) => ({ trade: t.trade, count: t.count })) }));
+        setLabourFrom(summary);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, project, reportDate, labourEmpty]);
 
   // ---------- autosave draft for new reports
   useEffect(() => {
@@ -411,7 +431,15 @@ export default function ReportForm() {
 
       {/* ---------------- Lists */}
       <div className="grid-2 align-start">
-        <RowsEditor spec={LISTS.labour} rows={form.labour} onChange={(v) => set('labour', v)} footer={(rows) => rows.length > 0 && <span className="muted small">Total: {rows.reduce((s, r) => s + (Number(r.count) || 0), 0)} operatives</span>} />
+        <RowsEditor
+          spec={LISTS.labour}
+          rows={form.labour}
+          onChange={(v) => set('labour', v)}
+          note={labourFrom && labourFrom.date === form.report_date && (
+            <div className="note info small"><span>Filled from the attendance register: {labourFrom.on_site} on site, {labourFrom.absent} absent. Adjust if anyone left early.</span></div>
+          )}
+          footer={(rows) => rows.length > 0 && <span className="muted small">Total: {rows.reduce((s, r) => s + (Number(r.count) || 0), 0)} operatives</span>}
+        />
         <RowsEditor spec={LISTS.equipment} rows={form.equipment} onChange={(v) => set('equipment', v)} />
       </div>
       <RowsEditor spec={LISTS.materials} rows={form.materials} onChange={(v) => set('materials', v)} />
@@ -537,13 +565,14 @@ function QuickFill({ projectId, date, onResult }) {
   );
 }
 
-function RowsEditor({ spec, rows, onChange, defaults = {}, footer }) {
+function RowsEditor({ spec, rows, onChange, defaults = {}, footer, note }) {
   const blank = () => Object.fromEntries(spec.cols.map((c) => [c.k, defaults[c.k] ?? (c.options ? c.options[0] : '')]));
   const update = (i, k, v) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const tpl = spec.cols.map((c) => `${c.w}fr`).join(' ') + ' 32px';
   return (
     <section className="card form-section">
       <h2>{spec.title}</h2>
+      {note}
       {rows.length > 0 && (
         <div className="rows">
           <div className="rows-head" style={{ gridTemplateColumns: tpl }}>

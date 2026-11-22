@@ -16,6 +16,10 @@ An AI-enabled web app for construction professionals to track project progress a
   - Cumulative % progress per activity (number box + slider), showing the previous % and the planned %.
   - Weather, labour, plant & equipment, material deliveries, visitors, site issues (category / severity / action), site photos with captions and notes.
   - Drafts are saved in the browser until you submit.
+- **Daily attendance register** (each morning)
+  - A workforce list per project (name, trade, employer/subcontractor, phone). Add people one at a time or paste a list (one per line, `Name, Trade, Employer, Phone`, or rows copied from Excel). People who leave are marked as left and keep their history.
+  - The supervisor marks each worker **Present**, **Late** (with arrival time) or **Absent** (reason: sick, on leave, no-show, suspended, training/off site, other, plus a note). "Mark everyone present" fills in the rest. Earlier days can be opened and corrected.
+  - The dashboard's Attendance panel shows today's present/late/absent counts, the absentees with their reasons, and a 14-day chart. The evening daily report's *Labour on site* is pre-filled from that morning's register.
 - **Auto-calculated progress**: after each report, every task's progress is set from the most recent report that mentions it. Overall progress is the duration-weighted average (or weighted by a Weight/Value column, or a weight you set per task).
 - **PDF daily reports**: branded A4 report with a summary, progress table, all site details, a photo grid and sign-off lines.
 - **AI features** (Claude, optional)

@@ -7,6 +7,7 @@ import { db, tx, decodeReport, computeOverall, refreshProject, UPLOAD_DIR } from
 import { parseProgramme } from './programme.js';
 import { renderReportPdf } from './pdf.js';
 import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, templateSummary, generateInsights } from './ai.js';
+import { attendanceRouter } from './attendance.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -545,6 +546,10 @@ app.post(
     }
   })
 );
+
+// ------------------------------------------------------------------ Attendance register
+
+app.use('/api', attendanceRouter);
 
 // ------------------------------------------------------------------ Static
 
