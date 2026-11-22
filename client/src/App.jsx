@@ -34,6 +34,34 @@ export default function App() {
     }
   }, []);
 
+  // Drop-down menus (<details class="menu">): keep them on screen, close on outside tap or after a choice.
+  useEffect(() => {
+    const place = (details) => {
+      const list = details.querySelector('.menu-list');
+      if (!list) return;
+      list.classList.remove('open-right');
+      const r = list.getBoundingClientRect();
+      if (r.left < 8) list.classList.add('open-right');
+    };
+    const onToggle = (e) => {
+      const d = e.target;
+      if (d.matches?.('details.menu') && d.open) place(d);
+    };
+    const onClick = (e) => {
+      document.querySelectorAll('details.menu[open]').forEach((d) => {
+        const inside = d.contains(e.target);
+        const chose = inside && e.target.closest('.menu-list a, .menu-list button');
+        if (!inside || chose) d.removeAttribute('open');
+      });
+    };
+    document.addEventListener('toggle', onToggle, true);
+    document.addEventListener('click', onClick);
+    return () => {
+      document.removeEventListener('toggle', onToggle, true);
+      document.removeEventListener('click', onClick);
+    };
+  }, []);
+
   useEffect(() => {
     reload();
     const onUnauthorized = () => setMe(null);

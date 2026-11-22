@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, fmtDate, todayISO } from '../api.js';
 import { Sparkle, useAuth, useStatus } from '../App.jsx';
@@ -7,7 +7,7 @@ import ProjectFormModal from '../components/ProjectFormModal.jsx';
 import AttendancePanel from '../components/AttendancePanel.jsx';
 import MaterialsPanel from '../components/MaterialsPanel.jsx';
 import ProgressChart from '../components/ProgressChart.jsx';
-import { activityStatus, ErrorNote, Modal, ProgressBar, Spinner } from '../components/ui.jsx';
+import { activityStatus, ErrorNote, Modal, ProgressBar, Spinner, useVisibleRows } from '../components/ui.jsx';
 
 export default function ProjectDashboard() {
   const { id } = useParams();
@@ -189,6 +189,7 @@ function ActivitiesPanel({ project, onChange, onUpload }) {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
 
+  const listRef = useRef(null);
   const acts = project.activities;
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -214,6 +215,7 @@ function ActivitiesPanel({ project, onChange, onUpload }) {
   }, [shown]);
 
   const totalW = acts.reduce((s, a) => s + a.weight, 0) || 1;
+  const taskScroll = useVisibleRows(listRef, '.act-row', 10, [shown, manage]);
 
   const act = async (fn) => {
     setError(null);
@@ -254,7 +256,7 @@ function ActivitiesPanel({ project, onChange, onUpload }) {
             </select>
             {manage && <button className="btn ghost sm" onClick={() => setAdding(true)}>+ Add task</button>}
           </div>
-          <div className="act-list">
+          <div className={`act-list ${taskScroll.overflowing ? 'capped' : ''}`} ref={listRef}>
             {groups.map(([section, list]) => (
               <div key={section} className="act-group">
                 <div className="act-group-head">{section}</div>
@@ -296,6 +298,7 @@ function ActivitiesPanel({ project, onChange, onUpload }) {
             ))}
             {!groups.length && <p className="muted small pad">No tasks match.</p>}
           </div>
+          {taskScroll.overflowing && <div className="scroll-hint">Showing {taskScroll.visible} of {taskScroll.total} tasks · scroll the list for more</div>}
           <p className="muted small foot-note">
             Overall progress is the average of every task's progress, weighted by its programme duration{manage ? ' (or the weight you set)' : ''}. The marker on each bar shows planned progress for today.
           </p>
@@ -350,6 +353,8 @@ function ActivityModal({ activity, onClose, onSave }) {
 }
 
 function ReportsPanel({ project }) {
+  const listRef = useRef(null);
+  const scroll = useVisibleRows(listRef, '.report-list > li', 10, [project.reports]);
   return (
     <section className="card panel">
       <div className="panel-head">
@@ -361,7 +366,8 @@ function ReportsPanel({ project }) {
           <p className="muted">No reports yet. At the end of each day, record the activities worked on and their progress.</p>
         </div>
       ) : (
-        <ul className="report-list">
+        <>
+        <ul className={`report-list ${scroll.overflowing ? 'capped' : ''}`} ref={listRef}>
           {project.reports.map((r) => (
             <li key={r.id}>
               <Link to={`/reports/${r.id}`} className="report-link">
@@ -383,6 +389,8 @@ function ReportsPanel({ project }) {
             </li>
           ))}
         </ul>
+        {scroll.overflowing && <div className="scroll-hint">Showing {scroll.visible} of {scroll.total} reports · scroll the list for more</div>}
+        </>
       )}
     </section>
   );
