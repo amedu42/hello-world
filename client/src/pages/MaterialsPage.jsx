@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, fmtDate, todayISO } from '../api.js';
+import { PeriodPdfModal } from '../components/AttendancePdfModal.jsx';
 import { ErrorNote, Field, Modal, Spinner } from '../components/ui.jsx';
 
 const shiftDate = (d, n) => new Date(Date.parse(d) + n * 86400000).toISOString().slice(0, 10);
@@ -16,6 +17,7 @@ export default function MaterialsPage() {
   const [warning, setWarning] = useState(null);
   const [entry, setEntry] = useState(null); // {type, ...} being added/edited
   const [manageOpen, setManageOpen] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const [stockQ, setStockQ] = useState('');
 
   const load = useCallback(async () => {
@@ -65,6 +67,7 @@ export default function MaterialsPage() {
           <p className="muted">Record deliveries and what was used each day. Stock on hand updates automatically.</p>
         </div>
         <div className="row gap wrap head-actions">
+          {data.materials.length > 0 && <button className="btn ghost" onClick={() => setPdfOpen(true)}>Download PDF</button>}
           <button className="btn ghost" onClick={() => setManageOpen(true)}>Manage materials</button>
         </div>
       </div>
@@ -166,6 +169,17 @@ export default function MaterialsPage() {
             if (!again) setEntry(null);
           }}
           onAddMaterial={() => setManageOpen(true)}
+        />
+      )}
+      {pdfOpen && (
+        <PeriodPdfModal
+          title="Download materials register"
+          description="Stock summary (stock at start, received, used, wasted, stock at end, low stock), every delivery with supplier and delivery note, every usage and wastage entry, and totals used per programme activity."
+          hrefBase={`/api/projects/${id}/materials-pdf`}
+          maxDays={92}
+          day={date}
+          defaultPreset="day"
+          onClose={() => setPdfOpen(false)}
         />
       )}
       {manageOpen && <MaterialsModal projectId={id} onClose={() => setManageOpen(false)} onChanged={load} />}

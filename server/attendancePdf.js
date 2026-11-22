@@ -57,11 +57,11 @@ export function periodRegisterData(projectId, from, to) {
 
 // ------------------------------------------------------------------ shared drawing helpers
 
-function makeDoc({ layout = 'portrait', title, branding }) {
+export function makeDoc({ layout = 'portrait', title, branding }) {
   return new PDFDocument({ size: 'A4', layout, margin: 40, bufferPages: true, info: { Title: title, Author: branding?.name || '' } });
 }
 
-function summaryBoxes(doc, C, y, boxes) {
+export function summaryBoxes(doc, C, y, boxes) {
   const L = doc.page.margins.left;
   const W = doc.page.width - L - doc.page.margins.right;
   const gap = 10;
@@ -75,17 +75,21 @@ function summaryBoxes(doc, C, y, boxes) {
   return y + 52;
 }
 
-function sectionTitle(doc, C, text) {
+export function sectionTitle(doc, C, text) {
   const L = doc.page.margins.left;
   const W = doc.page.width - L - doc.page.margins.right;
-  doc.moveDown(0.6);
+  // Keep a heading with at least its first rows: start a new page if fewer than ~80pt remain.
+  if (doc.y + 80 > doc.page.height - doc.page.margins.bottom - 20) {
+    doc.addPage();
+    doc.y = doc.page.margins.top;
+  } else doc.moveDown(0.6);
   doc.font('Helvetica-Bold').fontSize(11).fillColor(C.heading).text(text.toUpperCase(), L, doc.y, { width: W });
   doc.rect(L, doc.y + 1.5, W, 1.2).fill(C.rule);
   doc.y += 8;
 }
 
 /** Simple paginating table. cols: [{label, w (fraction), align, color(row), fill(row)}]; rows: arrays or {group}. */
-function table(doc, C, cols, rows, { fontSize = 9, pad = 4 } = {}) {
+export function table(doc, C, cols, rows, { fontSize = 9, pad = 4 } = {}) {
   const L = doc.page.margins.left;
   const W = doc.page.width - L - doc.page.margins.right;
   const bottom = () => doc.page.height - doc.page.margins.bottom - 20;
@@ -140,7 +144,7 @@ function table(doc, C, cols, rows, { fontSize = 9, pad = 4 } = {}) {
   doc.y += 6;
 }
 
-function signOff(doc, C, leftLabel, rightLabel) {
+export function signOff(doc, C, leftLabel, rightLabel) {
   const L = doc.page.margins.left;
   const W = doc.page.width - L - doc.page.margins.right;
   if (doc.y + 70 > doc.page.height - doc.page.margins.bottom - 20) {

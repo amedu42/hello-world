@@ -1,7 +1,9 @@
 // Daily materials register: a project's materials list with stock, and dated deliveries / usage / wastage.
 import express from 'express';
-import { db, tx } from './db.js';
+import path from 'node:path';
+import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
+import { materialsPeriodData, renderMaterialsPdf } from './materialsPdf.js';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS materials (
@@ -328,4 +330,23 @@ materialsRouter.get('/projects/:id/materials-overview', (req, res) => {
     today: day ? { deliveries: day.deliveries.length, usage: day.usage.length, rows: day.rows } : null,
     week: Object.fromEntries(week.map((w) => [w.type, w.n])),
   });
+});
+
+// ---------- PDF download (one day up to ~3 months)
+
+materialsRouter.get('/projects/:id/materials-pdf', (req, res) => {
+  const p = companyProject(req, req.params.id);
+  const { from, to } = req.query;
+  if (!isDate(from) || !isDate(to)) throw new HttpError(400, 'Choose a start and end date.');
+  if (from > to) throw new HttpError(400, 'The start date must be before the end date.');
+  if ((Date.parse(to) - Date.parse(from)) / 86400000 + 1 > 92) throw new HttpError(400, 'Choose a period of up to 92 days.');
+  const branding = {
+    name: req.company.name,
+    color: req.company.primary_color,
+    logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+  };
+  const safe = (p.code || p.name).replace(/[^\w-]+/g, '_').slice(0, 40);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${safe}_Materials_${from === to ? from : `${from}_to_${to}`}.pdf"`);
+  renderMaterialsPdf({ project: p, from, to, data: materialsPeriodData(p.id, from, to), branding }, res);
 });
