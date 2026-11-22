@@ -1,7 +1,9 @@
 // Daily attendance register: a project's workforce list, and who was present / late / absent each day.
 import express from 'express';
-import { db, tx } from './db.js';
+import path from 'node:path';
+import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
+import { dayRegisterData, periodRegisterData, renderDayRegisterPdf, renderPeriodRegisterPdf } from './attendancePdf.js';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS workers (
@@ -282,4 +284,38 @@ attendanceRouter.get('/projects/:id/attendance-overview', (req, res) => {
   const p = companyProject(req, req.params.id);
   const today = isDate(req.query.today) ? req.query.today : new Date().toISOString().slice(0, 10);
   res.json(attendanceOverview(p.id, today, Math.min(60, Math.max(7, Number(req.query.days) || 14))));
+});
+
+// ---------- PDF downloads
+
+const brandingFor = (req) => ({
+  name: req.company.name,
+  color: req.company.primary_color,
+  logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+});
+const fileSafe = (p) => (p.code || p.name).replace(/[^\w-]+/g, '_').slice(0, 40);
+
+attendanceRouter.get('/projects/:id/attendance/:date/pdf', (req, res) => {
+  const p = companyProject(req, req.params.id);
+  const { date } = req.params;
+  if (!isDate(date)) throw new HttpError(400, 'Invalid date');
+  const data = dayRegisterData(p.id, date);
+  if (!data) throw new HttpError(404, 'No register was taken on this day.');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${fileSafe(p)}_Attendance_${date}.pdf"`);
+  renderDayRegisterPdf({ project: p, data, branding: brandingFor(req) }, res);
+});
+
+/** Landscape sheet: workers down the side, dates across (max 31 days). */
+attendanceRouter.get('/projects/:id/attendance-pdf', (req, res) => {
+  const p = companyProject(req, req.params.id);
+  const { from, to } = req.query;
+  if (!isDate(from) || !isDate(to)) throw new HttpError(400, 'Choose a start and end date.');
+  if (from > to) throw new HttpError(400, 'The start date must be before the end date.');
+  const span = (Date.parse(to) - Date.parse(from)) / 86400000 + 1;
+  if (span > 31) throw new HttpError(400, 'Choose a period of up to 31 days.');
+  const data = periodRegisterData(p.id, from, to);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${fileSafe(p)}_Attendance_${from}_to_${to}.pdf"`);
+  renderPeriodRegisterPdf({ project: p, from, to, data, branding: brandingFor(req) }, res);
 });

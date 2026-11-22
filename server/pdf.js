@@ -46,7 +46,58 @@ export function reportPalette(primary) {
   };
 }
 
-const fmtDate = (d) =>
+/**
+ * Company-coloured header band with the logo on a white tile (so any logo stays legible).
+ * Returns the band height; content should start below it.
+ */
+export function drawBrandHeader(doc, { C, branding = {}, title, lines = [], right }) {
+  const L = doc.page.margins.left;
+  const W = doc.page.width - L - doc.page.margins.right;
+  const BAND = 96;
+  doc.rect(0, 0, doc.page.width, BAND).fill(C.band);
+  doc.rect(0, BAND, doc.page.width, 4).fill(C.stripe);
+  let textX = L;
+  const logo = branding.logoPath && fs.existsSync(branding.logoPath) ? branding.logoPath : null;
+  if (logo) {
+    const tileH = 64;
+    try {
+      const img = doc.openImage(logo);
+      const tileW = Math.min(150, Math.max(tileH, (tileH - 12) * (img.width / img.height) + 12));
+      doc.roundedRect(L, 16, tileW, tileH, 6).fill('#ffffff');
+      doc.image(img, L + 6, 22, { fit: [tileW - 12, tileH - 12], align: 'center', valign: 'center' });
+      textX = L + tileW + 16;
+    } catch {
+      textX = L;
+    }
+  }
+  const textW = W - (textX - L) - 170;
+  doc.fillColor(C.onBand).font('Helvetica-Bold').fontSize(18).text(title, textX, 22, { width: textW + 60, lineBreak: false });
+  doc.font('Helvetica').fontSize(10.5).fillColor(C.onBandSub);
+  lines.slice(0, 2).forEach((line, i) => doc.text(line, textX, 46 + i * 16, { width: textW + 60, lineBreak: false, ellipsis: true }));
+  if (right) doc.font('Helvetica-Bold').fontSize(10).fillColor(C.onBand).text(right, L + W - 200, 24, { width: 200, align: 'right' });
+  if (branding.name) doc.font('Helvetica').fontSize(9).fillColor(C.onBandSub).text(branding.name, L + W - 200, 40, { width: 200, align: 'right' });
+  return BAND;
+}
+
+/** "Name · Project · Document" on the left and "Page x of y" on the right of every page. */
+export function drawFooters(doc, C, leftParts) {
+  const L = doc.page.margins.left;
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    const W = doc.page.width - L - doc.page.margins.right;
+    const fy = doc.page.height - 30;
+    const oldBottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+    doc.rect(L, fy - 8, W, 0.6).fill(C.rule);
+    doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
+    doc.text(leftParts.filter(Boolean).join(' · '), L, fy, { width: W * 0.75, lineBreak: false, ellipsis: true });
+    doc.text(`Page ${i + 1} of ${range.count}`, L + W * 0.75, fy, { width: W * 0.25, align: 'right', lineBreak: false });
+    doc.page.margins.bottom = oldBottom;
+  }
+}
+
+export const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
 // A5 is 148 × 210 mm = 419.5 × 595.3 pt.
@@ -69,33 +120,14 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     }
   };
 
-  // ---------- Header band (company colour, logo on a white tile so any logo stays legible)
-  const BAND = 96;
-  doc.rect(0, 0, doc.page.width, BAND).fill(C.band);
-  doc.rect(0, BAND, doc.page.width, 4).fill(C.stripe);
-  let textX = L;
-  const logo = branding.logoPath && fs.existsSync(branding.logoPath) ? branding.logoPath : null;
-  if (logo) {
-    const tileH = 64;
-    let tileW = tileH;
-    try {
-      const img = doc.openImage(logo);
-      const ratio = img.width / img.height;
-      tileW = Math.min(150, Math.max(tileH, (tileH - 12) * ratio + 12));
-      doc.roundedRect(L, 16, tileW, tileH, 6).fill('#ffffff');
-      doc.image(img, L + 6, 22, { fit: [tileW - 12, tileH - 12], align: 'center', valign: 'center' });
-      textX = L + tileW + 16;
-    } catch {
-      textX = L;
-    }
-  }
-  const textW = W - (textX - L) - 110;
-  doc.fillColor(C.onBand).font('Helvetica-Bold').fontSize(18).text('DAILY SITE REPORT', textX, 22, { width: textW });
-  doc.font('Helvetica').fontSize(10.5).fillColor(C.onBandSub);
-  doc.text(project.name + (project.code ? `  ·  ${project.code}` : ''), textX, 46, { width: textW, lineBreak: false, ellipsis: true });
-  doc.text(fmtDate(report.report_date), textX, 62, { width: textW });
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(C.onBand).text(`Report No. ${reportNo}`, L, 24, { width: W, align: 'right' });
-  if (branding.name) doc.font('Helvetica').fontSize(9).fillColor(C.onBandSub).text(branding.name, L + W - 160, 40, { width: 160, align: 'right' });
+  // ---------- Header band
+  const BAND = drawBrandHeader(doc, {
+    C,
+    branding,
+    title: 'DAILY SITE REPORT',
+    lines: [project.name + (project.code ? `  ·  ${project.code}` : ''), fmtDate(report.report_date)],
+    right: `Report No. ${reportNo}`,
+  });
 
   // ---------- Project facts + progress box
   doc.y = BAND + 18;
@@ -312,18 +344,6 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
   });
 
   // ---------- Footer on every page
-  const range = doc.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
-    doc.switchToPage(i);
-    const fy2 = doc.page.height - 30;
-    const oldBottom = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc.rect(L, fy2 - 8, W, 0.6).fill(C.rule);
-    doc.font('Helvetica').fontSize(7.5).fillColor(C.muted);
-    const left = [branding.name, project.name, `Daily Site Report ${report.report_date}`].filter(Boolean).join(' · ');
-    doc.text(left, L, fy2, { width: W * 0.75, lineBreak: false, ellipsis: true });
-    doc.text(`Page ${i + 1} of ${range.count}`, L + W * 0.75, fy2, { width: W * 0.25, align: 'right', lineBreak: false });
-    doc.page.margins.bottom = oldBottom;
-  }
+  drawFooters(doc, C, [branding.name, project.name, `Daily Site Report ${report.report_date}`]);
   doc.end();
 }

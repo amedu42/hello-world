@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, fmtDate, todayISO } from '../api.js';
+import AttendancePdfModal from './AttendancePdfModal.jsx';
 import { Spinner } from './ui.jsx';
 
 const DAYS = 14;
@@ -9,6 +10,7 @@ const shift = (d, n) => new Date(Date.parse(d) + n * 86400000).toISOString().sli
 export default function AttendancePanel({ projectId }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const today = todayISO();
 
   useEffect(() => {
@@ -21,7 +23,12 @@ export default function AttendancePanel({ projectId }) {
     <section className="card attendance-panel">
       <div className="row between wrap gap">
         <h2>Attendance</h2>
-        {data?.active_workers > 0 && <Link className="btn ghost sm" to={link}>Open register</Link>}
+        {data?.active_workers > 0 && (
+          <div className="row gap">
+            {data.history.length > 0 && <button className="btn ghost sm" onClick={() => setPdfOpen(true)}>Download PDF</button>}
+            <Link className="btn ghost sm" to={link}>Open register</Link>
+          </div>
+        )}
       </div>
       {error && <p className="muted small">{error}</p>}
       {!data && !error && <Spinner label="Loading…" />}
@@ -37,6 +44,7 @@ export default function AttendancePanel({ projectId }) {
           <History history={data.history} today={today} />
         </div>
       )}
+      {pdfOpen && <AttendancePdfModal projectId={projectId} onClose={() => setPdfOpen(false)} />}
     </section>
   );
 }

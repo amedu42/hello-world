@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, fmtDate, todayISO } from '../api.js';
+import AttendancePdfModal from '../components/AttendancePdfModal.jsx';
 import { ErrorNote, Field, Modal, Spinner } from '../components/ui.jsx';
 
 const STATUS = [
@@ -27,6 +28,7 @@ export default function AttendancePage() {
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
   const [workforceOpen, setWorkforceOpen] = useState(false);
+  const [periodOpen, setPeriodOpen] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -142,7 +144,10 @@ export default function AttendancePage() {
             {data.taken ? `Taken by ${data.taken_by}` : isToday ? "Today's register hasn't been taken yet." : 'No register was taken on this day.'}
           </p>
         </div>
-        <button className="btn ghost" onClick={() => setWorkforceOpen(true)}>Manage workforce</button>
+        <div className="row gap wrap head-actions">
+          <button className="btn ghost" onClick={() => setPeriodOpen(true)}>Period register PDF</button>
+          <button className="btn ghost" onClick={() => setWorkforceOpen(true)}>Manage workforce</button>
+        </div>
       </div>
 
       <div className="date-nav card">
@@ -160,6 +165,20 @@ export default function AttendancePage() {
         <div className="note success">
           <span>Register saved: <b>{saved.on_site}</b> on site, <b>{saved.absent}</b> absent.</span>
           <button className="btn ghost sm" onClick={() => navigate(`/projects/${id}`)}>Back to dashboard</button>
+        </div>
+      )}
+
+      {data.taken && (
+        <div className="day-pdf">
+          {dirty ? (
+            <span className="muted small">Save your changes to download this day's register as a PDF.</span>
+          ) : (
+            <>
+              <span className="muted small">This day's register:</span>
+              <a className="btn ghost sm" href={`/api/projects/${id}/attendance/${date}/pdf?inline=1`} target="_blank" rel="noreferrer">View PDF</a>
+              <a className="btn primary sm" href={`/api/projects/${id}/attendance/${date}/pdf`}>Download PDF</a>
+            </>
+          )}
         </div>
       )}
 
@@ -264,6 +283,7 @@ export default function AttendancePage() {
         </>
       )}
 
+      {periodOpen && <AttendancePdfModal projectId={id} onClose={() => setPeriodOpen(false)} />}
       {workforceOpen && (
         <WorkforceModal
           projectId={id}

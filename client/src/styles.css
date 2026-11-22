@@ -658,3 +658,7 @@ tr.editing td { vertical-align: middle; }
 .sq.late, .seg.late { background: var(--st-late-fill); }
 .sq.absent, .seg.absent { background: var(--st-absent-fill); }
 .att-onsite { margin: -6px 0 12px; color: var(--ink-2); }
+.day-pdf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 14px; }
+.btn.disabled { opacity: 0.5; pointer-events: none; }
+@media (max-width: 640px) { .head-actions { width: 100%; } .head-actions .btn { flex: 1; } }
