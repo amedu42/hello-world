@@ -7,7 +7,8 @@ import { db, tx, decodeReport, computeOverall, refreshProject, UPLOAD_DIR } from
 import { parseProgramme } from './programme.js';
 import { renderReportPdf } from './pdf.js';
 import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, templateSummary, generateInsights } from './ai.js';
-import { attendanceRouter } from './attendance.js';
+import { attendanceRouter, daySummary } from './attendance.js';
+import { materialsDay, materialsRouter } from './materials.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -289,7 +290,21 @@ function loadReport(req, rid) {
   const items = db.prepare('SELECT * FROM report_items WHERE report_id = ? ORDER BY id').all(rid).map((i) => ({ ...i }));
   const photos = db.prepare('SELECT * FROM photos WHERE report_id = ? ORDER BY id').all(rid).map((p) => ({ ...p, url: `/uploads/${p.filename}` }));
   const reportNo = db.prepare('SELECT COUNT(*) n FROM reports WHERE project_id = ? AND report_date <= ?').get(report.project_id, report.report_date).n;
-  return { report, items, photos, reportNo };
+  return { report, items, photos, reportNo, registers: registersFor(report.project_id, report.report_date) };
+}
+
+/**
+ * The attendance and materials registers for a report's date. `attendance` is null when the project
+ * doesn't use the register (no workers); `{ taken: false }` when it does but nobody took it that day.
+ * `materials` is null when the project has no materials list.
+ */
+function registersFor(projectId, date) {
+  const usesAttendance = db.prepare('SELECT 1 FROM workers WHERE project_id = ? LIMIT 1').get(projectId);
+  const att = usesAttendance ? daySummary(projectId, date) : null;
+  return {
+    attendance: usesAttendance ? (att ? { taken: true, ...att } : { taken: false, date }) : null,
+    materials: materialsDay(projectId, date),
+  };
 }
 
 const arr = (v) => (Array.isArray(v) ? v : []);
@@ -394,9 +409,9 @@ async function saveReport(req, res, existingId) {
   });
 
   // Narrative summary (AI when available, template otherwise).
-  const { report, items } = loadReport(req, reportId);
+  const { report, items, registers } = loadReport(req, reportId);
   const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, date);
-  const ctx = { project, report, items, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
+  const ctx = { project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
   let summary, source = 'template', aiError = null;
   if (aiEnabled() && data.ai_summary !== false) {
     try {
@@ -445,12 +460,12 @@ app.get('/api/reports/:rid/pdf', (req, res) => {
 app.post(
   '/api/reports/:rid/summary',
   wrap(async (req, res) => {
-    const { report, items } = loadReport(req, req.params.rid);
+    const { report, items, registers } = loadReport(req, req.params.rid);
     const project = getProject(req, report.project_id);
     if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
     const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, report.report_date);
     try {
-      const summary = await generateReportSummary({ project, report, items, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null });
+      const summary = await generateReportSummary({ project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null });
       db.prepare("UPDATE reports SET summary = ?, summary_source = 'ai' WHERE id = ?").run(summary, report.id);
       res.json({ summary });
     } catch (e) {
@@ -550,6 +565,8 @@ app.post(
 // ------------------------------------------------------------------ Attendance register
 
 app.use('/api', attendanceRouter);
+app.use('/api', materialsRouter);
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // ------------------------------------------------------------------ Static
 

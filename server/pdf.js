@@ -104,7 +104,7 @@ export const fmtDate = (d) =>
 const A5_SHORT = 419.5;
 const A5_LONG = 595.3;
 
-export function renderReportPdf({ project, report, items, photos, reportNo, branding = {} }, stream) {
+export function renderReportPdf({ project, report, items, photos, reportNo, registers = {}, branding = {} }, stream) {
   const C = reportPalette(branding.color);
   const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, info: { Title: `${project.name} – Daily Report ${report.report_date}`, Author: branding.name || '' } });
   doc.pipe(stream);
@@ -235,6 +235,52 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     );
   } else empty('No activities recorded.');
 
+  // ---------- Attendance register (only for projects that use it)
+  const att = registers.attendance;
+  if (att) {
+    section('Attendance');
+    if (!att.taken) {
+      empty('No attendance register was taken on this day.');
+    } else {
+      ensure(60);
+      const stats = [
+        ['Present', att.present, C.good],
+        ['Late', att.late, '#8a5a00'],
+        ['Absent', att.absent, C.bad],
+        ['On site', `${att.on_site} of ${att.present + att.late + att.absent}`, C.big],
+      ];
+      const gap = 8;
+      const bw = (W - gap * 3) / 4;
+      const y0 = doc.y;
+      stats.forEach(([label, value, col], i) => {
+        const x = L + i * (bw + gap);
+        doc.roundedRect(x, y0, bw, 38, 5).fill(C.soft);
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(C.muted).text(label.toUpperCase(), x + 8, y0 + 7, { width: bw - 16 });
+        doc.font('Helvetica-Bold').fontSize(14).fillColor(col).text(String(value), x + 8, y0 + 17, { width: bw - 16 });
+      });
+      doc.y = y0 + 46;
+      if (att.trade_counts.length) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.ink).text('On site by trade: ', L, doc.y, { continued: true, width: W });
+        doc.font('Helvetica').text(att.trade_counts.map((t) => `${t.trade} ${t.count}`).join('  ·  '));
+        doc.y += 4;
+      }
+      if (att.absentees.length) {
+        table(
+          [
+            { label: 'Absentee', w: 0.3 },
+            { label: 'Trade', w: 0.2 },
+            { label: 'Reason', w: 0.2, color: () => C.bad },
+            { label: 'Note', w: 0.3 },
+          ],
+          att.absentees.map((a) => [a.name, a.trade || 'General', a.reason_label, a.note || ''])
+        );
+      } else {
+        empty('No absentees.');
+      }
+      if (att.taken_by) doc.font('Helvetica').fontSize(7.5).fillColor(C.muted).text(`Register taken by ${att.taken_by}.`, L, doc.y, { width: W });
+    }
+  }
+
   // ---------- Weather
   const w = report.weather || {};
   section('Weather conditions');
@@ -266,13 +312,76 @@ export function renderReportPdf({ project, report, items, photos, reportNo, bran
     }
   }
 
-  section('Material deliveries');
-  if (report.materials?.length) {
+  // ---------- Materials: from the materials register when it has entries for the day, otherwise the
+  // report's own delivery list (older reports and projects that don't use the register).
+  const mat = registers.materials;
+  const fmtQ = (n) => (n ? String(Math.round(n * 1000) / 1000) : '–');
+  const sub = (t) => {
+    ensure(30);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(C.heading).text(t, L, doc.y + 2, { width: W });
+    doc.y += 3;
+  };
+  if (mat && mat.movement_count) {
+    section('Materials');
     table(
-      [{ label: 'Material', w: 0.32 }, { label: 'Quantity', w: 0.18 }, { label: 'Supplier', w: 0.22 }, { label: 'Notes', w: 0.28 }],
-      report.materials.map((m) => [m.material, m.quantity, m.supplier, m.notes])
+      [
+        { label: 'Material', w: 0.3 },
+        { label: 'Unit', w: 0.1 },
+        { label: 'Opening', w: 0.11, align: 'right' },
+        { label: 'Received', w: 0.11, align: 'right', color: (r) => (r[3] !== '–' ? C.good : C.muted) },
+        { label: 'Used', w: 0.1, align: 'right' },
+        { label: 'Wasted', w: 0.1, align: 'right', color: (r) => (r[5] !== '–' ? C.warn : C.muted) },
+        { label: 'Closing', w: 0.18, align: 'right', color: (r) => (r.flag ? C.bad : C.ink) },
+      ],
+      mat.rows.map((r) => {
+        const row = [r.name, r.unit, fmtQ(r.opening) === '–' ? '0' : fmtQ(r.opening), fmtQ(r.delivered), fmtQ(r.used), fmtQ(r.wasted), `${fmtQ(r.closing) === '–' ? '0' : fmtQ(r.closing)}${r.negative ? ' (check)' : r.low ? ' (low)' : ''}`];
+        row.flag = r.low || r.negative;
+        return row;
+      })
     );
-  } else empty('No deliveries recorded.');
+    if (mat.deliveries.length) {
+      sub('Deliveries received');
+      table(
+        [
+          { label: 'Material', w: 0.28 },
+          { label: 'Quantity', w: 0.14, align: 'right' },
+          { label: 'Supplier', w: 0.22 },
+          { label: 'Delivery note', w: 0.14 },
+          { label: 'Notes', w: 0.22 },
+        ],
+        mat.deliveries.map((d) => [d.material, `${fmtQ(d.quantity)} ${d.unit}`, d.supplier || '', d.reference || '', d.notes || ''])
+      );
+    }
+    if (mat.usage.length) {
+      sub('Materials used');
+      table(
+        [
+          { label: 'Material', w: 0.28 },
+          { label: 'Quantity', w: 0.14, align: 'right' },
+          { label: 'Type', w: 0.12, color: (r) => (r[2] === 'Wasted' ? C.warn : C.ink) },
+          { label: 'Activity / location', w: 0.26 },
+          { label: 'Notes', w: 0.2 },
+        ],
+        mat.usage.map((u) => [u.material, `${fmtQ(u.quantity)} ${u.unit}`, u.type === 'wasted' ? 'Wasted' : 'Used', [u.activity_name, u.location].filter(Boolean).join(' – '), u.notes || ''])
+      );
+    }
+  } else {
+    section('Material deliveries');
+    if (report.materials?.length) {
+      table(
+        [{ label: 'Material', w: 0.32 }, { label: 'Quantity', w: 0.18 }, { label: 'Supplier', w: 0.22 }, { label: 'Notes', w: 0.28 }],
+        report.materials.map((m) => [m.material, m.quantity, m.supplier, m.notes])
+      );
+    } else empty(mat ? 'No materials received or used.' : 'No deliveries recorded.');
+  }
+  if (mat?.low?.length) {
+    ensure(24);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.bad).text('Low stock at end of day: ', L, doc.y, { continued: true, width: W });
+    doc.font('Helvetica').fillColor(C.ink).text(
+      mat.low.map((l) => `${l.name} ${fmtQ(l.stock) === '–' ? 0 : fmtQ(l.stock)} ${l.unit}${l.reorder_level != null ? ` (reorder at ${l.reorder_level})` : ''}`).join('; ')
+    );
+    doc.y += 4;
+  }
 
   section('Site issues');
   if (report.issues?.length) {

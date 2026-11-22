@@ -5,6 +5,7 @@ import { Sparkle, useAuth, useStatus } from '../App.jsx';
 import ProgrammeUploadModal from '../components/ProgrammeUploadModal.jsx';
 import ProjectFormModal from '../components/ProjectFormModal.jsx';
 import AttendancePanel from '../components/AttendancePanel.jsx';
+import MaterialsPanel from '../components/MaterialsPanel.jsx';
 import ProgressChart from '../components/ProgressChart.jsx';
 import { activityStatus, ErrorNote, Modal, ProgressBar, Spinner } from '../components/ui.jsx';
 
@@ -55,6 +56,7 @@ export default function ProjectDashboard() {
             </div>
           </details>
           <Link className="btn ghost" to={`/projects/${p.id}/attendance`}>Attendance</Link>
+          <Link className="btn ghost" to={`/projects/${p.id}/materials`}>Materials</Link>
           {todaysReport ? (
             <Link className="btn primary" to={`/reports/${todaysReport.id}/edit`}>Edit today's report</Link>
           ) : (
@@ -99,6 +101,7 @@ export default function ProjectDashboard() {
       </section>
 
       <AttendancePanel projectId={p.id} />
+      <MaterialsPanel projectId={p.id} />
 
       <Insights projectId={p.id} hasReports={p.reports.length > 0} />
 

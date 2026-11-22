@@ -442,7 +442,18 @@ export default function ReportForm() {
         />
         <RowsEditor spec={LISTS.equipment} rows={form.equipment} onChange={(v) => set('equipment', v)} />
       </div>
-      <RowsEditor spec={LISTS.materials} rows={form.materials} onChange={(v) => set('materials', v)} />
+      <RowsEditor
+        spec={LISTS.materials}
+        rows={form.materials}
+        onChange={(v) => set('materials', v)}
+        note={
+          <div className="note info small">
+            <span>
+              Deliveries and usage recorded in the <Link to={`/projects/${project.id}/materials?date=${form.report_date}`}>materials register</Link> appear in this report automatically. Use this list only for anything not in the register.
+            </span>
+          </div>
+        }
+      />
       <RowsEditor spec={LISTS.issues} rows={form.issues} onChange={(v) => set('issues', v)} defaults={{ category: 'Other', severity: 'Low' }} />
       <RowsEditor spec={LISTS.visitors} rows={form.visitors} onChange={(v) => set('visitors', v)} />
 
