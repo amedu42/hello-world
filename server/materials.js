@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
+import { notifyLowStock } from './notifications.js';
 import { materialsPeriodData, renderMaterialsPdf } from './materialsPdf.js';
 
 db.exec(`
@@ -275,21 +276,41 @@ function stockWarning(projectId, materialId) {
   return null;
 }
 
+
+/** Current stock (all recorded days) and whether it is at/below the reorder level or negative. */
+function stockState(materialId) {
+  const m = db.prepare('SELECT * FROM materials WHERE id = ?').get(materialId);
+  const net = db.prepare("SELECT COALESCE(SUM(CASE WHEN type = 'delivered' THEN quantity ELSE -quantity END), 0) n FROM material_movements WHERE material_id = ?").get(materialId).n;
+  const stock = r3(m.opening_stock + net);
+  return { m, stock, flagged: stock < 0 || (m.reorder_level != null && stock <= m.reorder_level) };
+}
+function alertIfNewlyLow(req, projectId, materialId, wasFlagged) {
+  const after = stockState(materialId);
+  if (!wasFlagged && after.flagged && after.m.active) {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    notifyLowStock({ project, material: after.m, stock: after.stock, byUser: req.user });
+  }
+}
+
 materialsRouter.post('/projects/:id/material-movements', (req, res) => {
   const p = companyProject(req, req.params.id);
   const v = readMovement(req, p.id, req.body || {});
+  const was = stockState(v.material_id).flagged;
   db.prepare(
     'INSERT INTO material_movements (project_id, material_id, date, type, quantity, supplier, reference, activity_id, location, notes, recorded_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
   ).run(p.id, v.material_id, v.date, v.type, v.quantity, v.supplier, v.reference, v.activity_id, v.location, v.notes, req.user.name);
+  alertIfNewlyLow(req, p.id, v.material_id, was);
   res.status(201).json({ ok: true, warning: stockWarning(p.id, v.material_id), day: materialsDay(p.id, v.date) });
 });
 
 materialsRouter.put('/material-movements/:mvid', (req, res) => {
   const mv = movementFor(req, req.params.mvid);
   const v = readMovement(req, mv.project_id, req.body || {}, mv);
+  const was = stockState(v.material_id).flagged;
   db.prepare('UPDATE material_movements SET material_id=?, date=?, type=?, quantity=?, supplier=?, reference=?, activity_id=?, location=?, notes=? WHERE id=?').run(
     v.material_id, v.date, v.type, v.quantity, v.supplier, v.reference, v.activity_id, v.location, v.notes, mv.id
   );
+  alertIfNewlyLow(req, mv.project_id, v.material_id, was);
   res.json({ ok: true, warning: stockWarning(mv.project_id, v.material_id) || (v.material_id !== mv.material_id ? stockWarning(mv.project_id, mv.material_id) : null), day: materialsDay(mv.project_id, v.date) });
 });
 

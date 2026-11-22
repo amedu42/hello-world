@@ -45,6 +45,26 @@ SitePulse is an installable web app (PWA). In Chrome on Android, open the site a
 - `client/public/sw.js`: service worker. It caches only the app's code, icons and an offline page, never API data, photos or PDFs, so everything shown is live; with no connection it shows `offline.html`.
 - The server sends `sw.js`, `index.html` and the manifest with `Cache-Control: no-cache` so installed apps pick up new releases immediately; hashed files in `/assets` are cached for a year.
 
+## Push notifications
+
+Each person turns notifications on per device (user menu → **Notifications**, or the prompt on the projects page) and chooses what to receive:
+
+| Notification | When | Default |
+|---|---|---|
+| Attendance register reminder | At the person's reminder time (08:00) if today's register hasn't been taken (projects with a workforce) | everyone |
+| Daily report reminder | At the reminder time (17:00) if today's report hasn't been filed | everyone |
+| Attendance register submitted | When a day's register is first saved | admins |
+| Daily report submitted | When a new report is filed | admins |
+| High-severity site issue | When a report records a new High issue | everyone |
+| Low stock | When a material drops to its reorder level or below zero (once a day per material) | everyone |
+| Behind schedule | When a project is at least N points behind plan (default 10; once a week per project) | admins |
+
+Reminders use each person's time zone and working days (default Mon–Sat), and are sent up to 4 hours late if the server was briefly down. Nobody is notified about their own action. Tapping a notification opens the related page.
+
+- Uses standard Web Push (`web-push`). The VAPID keys are generated on first start and kept in `DATA_DIR/vapid.json` (or set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`). Keep the data disk so existing subscriptions stay valid.
+- iPhone/iPad: works from iOS 16.4 once SitePulse is added to the home screen.
+- `SITEPULSE_REMINDERS=off` disables the reminder clock (e.g. for a second server instance).
+
 ## Accounts
 
 - **Companies sign up themselves** at `/signup` and become that company's admin. Each company sees only its own projects, tasks, reports, photos and PDFs.

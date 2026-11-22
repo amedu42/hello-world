@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
+import { notifyRegisterSubmitted } from './notifications.js';
 import { dayRegisterData, periodRegisterData, renderDayRegisterPdf, renderPeriodRegisterPdf } from './attendancePdf.js';
 
 db.exec(`
@@ -238,6 +239,7 @@ attendanceRouter.put('/projects/:id/attendance/:date', (req, res) => {
   const entries = Array.isArray(b.entries) ? b.entries : [];
   const validWorkers = new Set(db.prepare('SELECT id FROM workers WHERE project_id = ?').all(p.id).map((r) => r.id));
   const marked = entries.filter((e) => e && STATUSES.includes(e.status) && validWorkers.has(Number(e.worker_id)));
+  const firstSave = !db.prepare('SELECT 1 FROM attendance_days WHERE project_id = ? AND date = ?').get(p.id, date);
   if (!marked.length) throw new HttpError(400, 'Mark at least one worker before saving.');
   for (const e of marked) {
     if (e.status === 'absent' && e.absence_reason && !REASONS[e.absence_reason]) throw new HttpError(400, 'Unknown absence reason.');
@@ -263,7 +265,9 @@ attendanceRouter.put('/projects/:id/attendance/:date', (req, res) => {
       );
     }
   });
-  res.json({ ok: true, summary: daySummary(p.id, date) });
+  const summary = daySummary(p.id, date);
+  if (firstSave) notifyRegisterSubmitted({ project: p, date, summary, byUser: req.user });
+  res.json({ ok: true, summary });
 });
 
 attendanceRouter.delete('/projects/:id/attendance/:date', (req, res) => {

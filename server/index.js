@@ -9,6 +9,7 @@ import { renderReportPdf } from './pdf.js';
 import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, templateSummary, generateInsights } from './ai.js';
 import { attendanceRouter, daySummary } from './attendance.js';
 import { materialsDay, materialsRouter } from './materials.js';
+import { notifyReportSaved, pushRouter, startReminderScheduler } from './notifications.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -335,6 +336,8 @@ async function saveReport(req, res, existingId) {
   const date = data.report_date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new HttpError(400, 'Report date is required');
   const dup = db.prepare('SELECT id FROM reports WHERE project_id = ? AND report_date = ? AND id != ?').get(project.id, date, existingId ?? -1);
+  // High-severity issues already on the report before this edit (so only new ones trigger an alert).
+  const previousIssues = existingId ? decodeReport(db.prepare('SELECT issues FROM reports WHERE id = ?').get(existingId) || {}).issues || [] : [];
   if (dup) throw new HttpError(409, `A report for ${date} already exists for this project. Open it to edit instead.`);
 
   const rawItems = arr(data.items).filter((i) => i && (i.activity_id || String(i.activity_name || '').trim()));
@@ -424,6 +427,16 @@ async function saveReport(req, res, existingId) {
   }
   if (!summary) summary = templateSummary(ctx);
   db.prepare('UPDATE reports SET summary = ?, summary_source = ? WHERE id = ?').run(summary, source, reportId);
+  notifyReportSaved({
+    project,
+    report: { ...report, id: reportId },
+    byUser: req.user,
+    isNew: !existingId,
+    previousIssues,
+    overall: computeOverall(project.id),
+    previousOverall: prev?.overall_progress ?? null,
+    planned: plannedOverall(listActivities(project.id)),
+  });
   res.status(existingId ? 200 : 201).json({ ...loadReport(req, reportId), ai_error: aiError });
 }
 
@@ -566,6 +579,7 @@ app.post(
 
 app.use('/api', attendanceRouter);
 app.use('/api', materialsRouter);
+app.use('/api/push', pushRouter);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // ------------------------------------------------------------------ Static
@@ -605,4 +619,5 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = Number(process.env.PORT) || 3001;
+startReminderScheduler();
 app.listen(PORT, () => console.log(`SitePulse API on http://localhost:${PORT}  (AI ${aiEnabled() ? 'enabled' : 'disabled – set ANTHROPIC_API_KEY to enable'})`));

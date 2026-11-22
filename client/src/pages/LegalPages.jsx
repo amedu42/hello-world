@@ -163,6 +163,7 @@ export function PrivacyPage() {
             </li>
             <li><b>Technical data:</b> a login session cookie, your IP address (used to protect sign-in from abuse and recorded in our hosting provider's logs), and the date of your last login.</li>
             <li><b>On your device:</b> an unfinished daily report may be saved in your browser's local storage until you submit it. It is not sent to us until then.</li>
+            <li><b>Notifications:</b> if you turn notifications on, we store your device's push address and your notification settings (types, reminder times, working days and time zone). You can turn them off at any time on the Notifications page or in your device settings.</li>
           </ul>
 
           <h2>2. How we use it</h2>
@@ -184,6 +185,7 @@ export function PrivacyPage() {
           <ul>
             <li><b>Render</b> (hosting): stores the application database and photos.</li>
             <li><b>Email delivery provider</b>: sends password reset and account emails.</li>
+            <li><b>Browser push services</b> (Google, Apple or Mozilla, depending on your device): deliver the notifications you turn on. They receive the notification in encrypted form.</li>
             <li>
               <b>Anthropic</b> (AI features{d.ai_enabled ? '' : ', when enabled'}): when you use AI features, the relevant content (such as report details, typed site
               notes or a programme file) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
