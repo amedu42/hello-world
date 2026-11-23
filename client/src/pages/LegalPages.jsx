@@ -20,7 +20,7 @@ function LegalShell({ title, d, children }) {
   return (
     <div className="legal-wrap">
       <article className="legal card">
-        <Link to="/" className="legal-back">← Proj4D</Link>
+        <a href="/home" className="legal-back">← Proj4D</a>
         <h1>{title}</h1>
         {d ? (
           <>

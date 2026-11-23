@@ -37,6 +37,14 @@ An AI-enabled web app for construction professionals to track project progress a
   - *Project insights*: risks and recommended actions based on the programme and the last 14 reports.
   - *Programme reading*: PDF programmes and spreadsheets with unusual layouts.
 
+## Public homepage
+
+Visitors who aren't logged in see the homepage at `/` (logged-in users go straight to their projects; the homepage is always at `/home`). It is plain server-rendered HTML (`server/landing.js`) with real screenshots in `client/public/home/`, so it loads fast and search engines can read it. It includes features, how it works, installing as an app, FAQ, and a **Book a demo** form.
+
+- Demo requests are saved and listed on the platform owner's **Platform admin** page (status: new / contacted / closed); the owner gets a push notification and, when SMTP is set up, an email. Spam protection: hidden honeypot field, 5 requests per hour per address, same-site check.
+- Settings: `CONTACT_WHATSAPP` (shows a WhatsApp button), `CONTACT_EMAIL`, `HOMEPAGE_URL` (canonical URL, link previews, sitemap), and `APP_ORIGIN` if the app later moves to its own domain (e.g. homepage on `proj4d.com`, app on `app.proj4d.com`): every homepage link into the app is then prefixed with it.
+- `robots.txt` and `sitemap.xml` are served; the installed app starts at `/login`.
+
 ## Install as an app
 
 Proj4D is an installable web app (PWA). In Chrome on Android, open the site and choose **Install app** (menu ⋮ → *Install app* or *Add to home screen*); on iPhone, Safari → Share → *Add to Home Screen*; on a computer, the install icon in Chrome/Edge's address bar. It then opens full screen from its own icon.

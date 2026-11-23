@@ -113,7 +113,7 @@ function startSession(req, res, userId) {
   setSessionCookie(req, res, token, SESSION_DAYS * 86400);
 }
 
-const isPlatformAdmin = (user) => Boolean(PLATFORM_ADMIN_EMAIL && user?.email?.toLowerCase() === PLATFORM_ADMIN_EMAIL);
+export const isPlatformAdmin = (user) => Boolean(PLATFORM_ADMIN_EMAIL && user?.email?.toLowerCase() === PLATFORM_ADMIN_EMAIL);
 
 function publicUser(u) {
   return { id: u.id, name: u.name, email: u.email, role: u.role, must_change_password: Boolean(u.must_change_password), created_at: u.created_at, last_login: u.last_login };

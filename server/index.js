@@ -10,6 +10,8 @@ import { aiEnabled, describeAIError, parseSiteNotes, generateReportSummary, temp
 import { attendanceRouter, daySummary } from './attendance.js';
 import { materialsDay, materialsRouter } from './materials.js';
 import { notifyReportSaved, pushRouter, startReminderScheduler } from './notifications.js';
+import { demoAdminRouter, publicRouter } from './demo.js';
+import { renderLanding } from './landing.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -24,6 +26,7 @@ app.use(loadSession);
 app.use(sameOrigin);
 app.use('/api/auth', authRouter);
 // Everything else under /api and /uploads needs a logged-in user; data is scoped to their company.
+app.use('/api/public', publicRouter); // homepage forms (no login)
 app.use(['/api', '/uploads'], requireUser);
 
 const storage = multer.diskStorage({
@@ -580,6 +583,7 @@ app.post(
 app.use('/api', attendanceRouter);
 app.use('/api', materialsRouter);
 app.use('/api/push', pushRouter);
+app.use('/api/admin/demo-requests', demoAdminRouter);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // ------------------------------------------------------------------ Static
@@ -590,10 +594,38 @@ app.get('/uploads/:file', (req, res) => {
   res.set('Cache-Control', 'private, max-age=604800');
   res.sendFile(path.join(UPLOAD_DIR, photo.filename));
 });
+// ------------------------------------------------------------------ Public homepage
+// Visitors who aren't logged in see the homepage at "/"; logged-in users get the app.
+// "/home" always shows the homepage. APP_ORIGIN prefixes its links when the app lives on another domain.
+const siteUrl = (process.env.HOMEPAGE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+let landingHtml = null;
+const landing = () =>
+  (landingHtml ??= renderLanding({
+    appOrigin: (process.env.APP_ORIGIN || '').replace(/\/+$/, ''),
+    whatsapp: process.env.CONTACT_WHATSAPP || '',
+    businessName: process.env.LEGAL_BUSINESS_NAME || 'Proj4D',
+    contactEmail: process.env.CONTACT_EMAIL || process.env.LEGAL_CONTACT_EMAIL || '',
+    canonical: siteUrl,
+  }));
+const sendLanding = (_req, res) => {
+  res.set('Cache-Control', 'no-cache').type('html').send(landing());
+};
+app.get('/home', sendLanding);
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').send(`User-agent: *\nAllow: /$\nAllow: /home\nAllow: /terms\nAllow: /privacy\nDisallow: /api/\nDisallow: /uploads/\nDisallow: /projects/\nDisallow: /reports/\n${siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
+});
+app.get('/sitemap.xml', (_req, res) => {
+  const base = siteUrl || '';
+  const urls = ['/', '/signup', '/terms', '/privacy'].map((u) => `<url><loc>${base}${u}</loc></url>`).join('');
+  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+});
+
 const dist = path.resolve('dist');
 if (fs.existsSync(dist)) {
+  app.get('/', (req, res, next) => (req.user ? next() : sendLanding(req, res)));
   app.use(
     express.static(dist, {
+      index: false, // "/" is handled above (homepage or app)
       setHeaders: (res, file) => {
         const name = path.basename(file);
         if (name === 'sw.js' || name === 'index.html' || name.endsWith('.webmanifest')) {

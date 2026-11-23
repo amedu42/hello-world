@@ -732,3 +732,4 @@ tr.editing td { vertical-align: middle; }
 .day-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .notif-prompt { align-items: center; flex-wrap: wrap; }
 .notif-prompt > span:first-child { flex: 1 1 260px; }
+.auth-brand { color: var(--ink); text-decoration: none !important; }

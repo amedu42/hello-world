@@ -3,7 +3,7 @@
   "name": "Proj4D – Construction Site Reports",
   "short_name": "Proj4D",
   "description": "Construction project progress, daily site reports, attendance and materials registers.",
-  "start_url": "/",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
