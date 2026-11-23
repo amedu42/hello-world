@@ -28,6 +28,9 @@ services:
         sync: false
       - key: LEGAL_EFFECTIVE_DATE   # e.g. "1 December 2026"
         sync: false
+      # Homepage contact details (the WhatsApp button appears once this is set), e.g. "+44 7700 900123"
+      - key: CONTACT_WHATSAPP
+        sync: false
       # Email for password resets (any SMTP provider). Until set, reset links are written to the Render logs.
       - key: SMTP_HOST
         sync: false
@@ -37,5 +40,5 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-      - key: MAIL_FROM             # e.g. "SitePulse <no-reply@yourdomain.com>"
+      - key: MAIL_FROM             # e.g. "Proj4D <no-reply@yourdomain.com>"
         sync: false

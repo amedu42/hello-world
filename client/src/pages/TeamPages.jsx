@@ -271,8 +271,73 @@ export function AdminPage() {
             )}
             {data.unassigned_projects > 0 && <p className="muted small">{data.unassigned_projects} project(s) from before company accounts are not assigned to any company yet.</p>}
           </section>
+          <DemoRequests />
         </>
       )}
     </>
+  );
+}
+
+const DEMO_STATUS = { new: 'New', contacted: 'Contacted', closed: 'Closed' };
+
+/** "Book a demo" requests from the public homepage. */
+function DemoRequests() {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [show, setShow] = useState('open');
+  const load = useCallback(() => api.get('/api/admin/demo-requests').then((d) => setRows(d.requests)).catch((e) => setError(e.message)), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const setStatus = async (r, status) => {
+    try {
+      await api.put(`/api/admin/demo-requests/${r.id}`, { status });
+      setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, status } : x)));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const shown = (rows || []).filter((r) => show === 'all' || r.status !== 'closed');
+  const fresh = (rows || []).filter((r) => r.status === 'new').length;
+  return (
+    <section className="card">
+      <div className="row between wrap gap">
+        <h2 className="no-margin">Demo requests {fresh > 0 && <span className="status-tag behind">{fresh} new</span>}</h2>
+        <select className="inline-select" value={show} onChange={(e) => setShow(e.target.value)} aria-label="Show">
+          <option value="open">Open requests</option>
+          <option value="all">All requests</option>
+        </select>
+      </div>
+      <ErrorNote error={error} onClose={() => setError(null)} />
+      {!rows ? <Spinner label="Loading…" /> : shown.length === 0 ? (
+        <p className="muted">No {show === 'open' ? 'open ' : ''}demo requests yet. They arrive from the "Book a demo" form on the homepage.</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="table stack-mobile">
+            <thead><tr><th>Received</th><th>Name</th><th>Company</th><th>Contact</th><th>Team</th><th>Message</th><th>Status</th></tr></thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.id}>
+                  <td className="cell-title nowrap">{fmtDateTime(r.created_at)}</td>
+                  <td data-label="Name"><b>{r.name}</b></td>
+                  <td data-label="Company">{r.company}</td>
+                  <td data-label="Contact" className="break">
+                    <a href={`mailto:${r.email}`}>{r.email}</a>
+                    {r.phone && <><br /><a href={`tel:${r.phone.replace(/[^\d+]/g, '')}`}>{r.phone}</a></>}
+                  </td>
+                  <td data-label="Team">{r.team_size || '–'}</td>
+                  <td data-label="Message" className="muted">{r.message || '–'}</td>
+                  <td data-label="Status">
+                    <select className="inline-select" value={r.status} onChange={(e) => setStatus(r, e.target.value)} aria-label={`Status for ${r.name}`}>
+                      {Object.entries(DEMO_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

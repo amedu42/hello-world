@@ -8,13 +8,13 @@ function AuthShell({ title, sub, children, footer }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card card">
-        <div className="auth-brand">
+        <a className="auth-brand" href="/home" title="Proj4D home">
           <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true">
             <rect width="32" height="32" rx="7" fill="#16324f" />
             <path d="M7 23h18M10 23V13l6-4 6 4v10" stroke="#f2a900" strokeWidth="2.6" fill="none" strokeLinejoin="round" />
           </svg>
-          <span>SitePulse</span>
-        </div>
+          <span>Proj4D</span>
+        </a>
         <h1>{title}</h1>
         {sub && <p className="muted">{sub}</p>}
         {children}
@@ -48,7 +48,7 @@ export function LoginPage({ onDone }) {
     <AuthShell
       title="Log in"
       sub="Construction progress tracking and daily site reports."
-      footer={<>New to SitePulse? <Link to="/signup">Create a company account</Link></>}
+      footer={<>New to Proj4D? <Link to="/signup">Create a company account</Link></>}
     >
       <form onSubmit={submit} className="stack">
         <ErrorNote error={error} />

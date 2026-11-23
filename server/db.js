@@ -6,6 +6,7 @@ export const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// The file keeps its original name so existing installations keep their data after the rename to Proj4D.
 export const db = new DatabaseSync(path.join(DATA_DIR, 'sitepulse.db'));
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 

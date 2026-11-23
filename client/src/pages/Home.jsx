@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, fmtDate } from '../api.js';
 import { useAuth } from '../App.jsx';
 import ProjectFormModal from '../components/ProjectFormModal.jsx';
+import { NotificationPrompt } from './NotificationsPage.jsx';
 import { ErrorNote, ProgressBar, Spinner } from '../components/ui.jsx';
 
 export default function Home() {
@@ -33,6 +34,7 @@ export default function Home() {
       </div>
 
       <ErrorNote error={error} />
+      {projects && projects.length > 0 && <NotificationPrompt />}
       {!projects && !error && <Spinner label="Loading projects…" />}
 
       {projects && projects.length > 3 && (

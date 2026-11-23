@@ -20,7 +20,7 @@ function LegalShell({ title, d, children }) {
   return (
     <div className="legal-wrap">
       <article className="legal card">
-        <Link to="/" className="legal-back">← SitePulse</Link>
+        <a href="/home" className="legal-back">← Proj4D</a>
         <h1>{title}</h1>
         {d ? (
           <>
@@ -55,13 +55,13 @@ export function TermsPage() {
       {d && (
         <>
           <p>
-            These terms are an agreement between {d.business_name} ("we", "us") and the company that registers a SitePulse account ("Customer", "you"). By creating an
-            account or using SitePulse, you agree to them on behalf of your company. If you don't agree, don't use the service.
+            These terms are an agreement between {d.business_name} ("we", "us") and the company that registers a Proj4D account ("Customer", "you"). By creating an
+            account or using Proj4D, you agree to them on behalf of your company. If you don't agree, don't use the service.
           </p>
 
           <h2>1. The service</h2>
           <p>
-            SitePulse is a web application for tracking construction project progress: importing work programmes, recording daily site reports (activities, progress,
+            Proj4D is a web application for tracking construction project progress: importing work programmes, recording daily site reports (activities, progress,
             weather, resources, deliveries, visitors, issues and photos), calculating progress and producing PDF reports. Optional AI features help fill in reports,
             write summaries, read programme files and suggest risks.
           </p>
@@ -76,7 +76,7 @@ export function TermsPage() {
 
           <h2>3. Your data</h2>
           <p>
-            You own everything your company puts into SitePulse ("Customer Data"). You give us permission to store, process, back up and display Customer Data only as
+            You own everything your company puts into Proj4D ("Customer Data"). You give us permission to store, process, back up and display Customer Data only as
             needed to provide, secure and support the service, including sending it to the service providers listed in our <Link to="/privacy">Privacy Policy</Link>.
             You are responsible for having the right to upload Customer Data, including photos and the names of people (such as visitors) that appear in reports.
           </p>
@@ -93,7 +93,7 @@ export function TermsPage() {
           <h2>5. AI features</h2>
           <p>
             AI-generated content (summaries, form entries filled from notes, activities read from programmes, and insights) can be incomplete or wrong. Review it before
-            relying on it. SitePulse does not replace professional judgement, contract administration, or the safety, quality and statutory records you are required to
+            relying on it. Proj4D does not replace professional judgement, contract administration, or the safety, quality and statutory records you are required to
             keep.
           </p>
 
@@ -105,13 +105,13 @@ export function TermsPage() {
 
           <h2>7. Availability and backups</h2>
           <p>
-            We aim to keep SitePulse available and to back up data, but the service is provided without a guarantee of uninterrupted availability. We recommend you
+            We aim to keep Proj4D available and to back up data, but the service is provided without a guarantee of uninterrupted availability. We recommend you
             download PDF copies of reports you need for your records.
           </p>
 
           <h2>8. Suspension and termination</h2>
           <ul>
-            <li>You may stop using SitePulse at any time and ask us to close your account by emailing <Mail d={d} />.</li>
+            <li>You may stop using Proj4D at any time and ask us to close your account by emailing <Mail d={d} />.</li>
             <li>We may suspend or close an account that breaches these terms or puts the service or other customers at risk, with notice where reasonable.</li>
             <li>After closure you have 30 days to ask for an export of your data; after that we delete it, as described in the Privacy Policy.</li>
           </ul>
@@ -150,7 +150,7 @@ export function PrivacyPage() {
       {d && (
         <>
           <p>
-            This policy explains what personal data SitePulse handles, why, and your choices. {d.business_name} operates SitePulse. For the project data a customer
+            This policy explains what personal data Proj4D handles, why, and your choices. {d.business_name} operates Proj4D. For the project data a customer
             company enters, that company decides what is collected and why, and we process it on the company's behalf.
           </p>
 
@@ -163,6 +163,7 @@ export function PrivacyPage() {
             </li>
             <li><b>Technical data:</b> a login session cookie, your IP address (used to protect sign-in from abuse and recorded in our hosting provider's logs), and the date of your last login.</li>
             <li><b>On your device:</b> an unfinished daily report may be saved in your browser's local storage until you submit it. It is not sent to us until then.</li>
+            <li><b>Notifications:</b> if you turn notifications on, we store your device's push address and your notification settings (types, reminder times, working days and time zone). You can turn them off at any time on the Notifications page or in your device settings.</li>
           </ul>
 
           <h2>2. How we use it</h2>
@@ -180,10 +181,11 @@ export function PrivacyPage() {
           </p>
 
           <h2>4. Service providers</h2>
-          <p>We share data only with providers that help us run SitePulse:</p>
+          <p>We share data only with providers that help us run Proj4D:</p>
           <ul>
             <li><b>Render</b> (hosting): stores the application database and photos.</li>
             <li><b>Email delivery provider</b>: sends password reset and account emails.</li>
+            <li><b>Browser push services</b> (Google, Apple or Mozilla, depending on your device): deliver the notifications you turn on. They receive the notification in encrypted form.</li>
             <li>
               <b>Anthropic</b> (AI features{d.ai_enabled ? '' : ', when enabled'}): when you use AI features, the relevant content (such as report details, typed site
               notes or a programme file) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
@@ -212,7 +214,7 @@ export function PrivacyPage() {
           </p>
 
           <h2>8. Children</h2>
-          <p>SitePulse is a business tool and is not intended for anyone under 18.</p>
+          <p>Proj4D is a business tool and is not intended for anyone under 18.</p>
 
           <h2>9. Changes</h2>
           <p>We'll update this page when our practices change and notify account admins of material changes.</p>

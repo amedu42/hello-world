@@ -1,5 +1,5 @@
 {
-  "name": "sitepulse",
+  "name": "proj4d",
   "version": "1.0.0",
   "private": true,
   "description": "AI-enabled construction project tracking and daily site reporting",
@@ -21,6 +21,7 @@
     "nodemailer": "^10.6.1",
     "papaparse": "^5.7.1",
     "pdfkit": "^0.20.2",
+    "web-push": "^4.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

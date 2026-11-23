@@ -7,8 +7,9 @@ import fs from 'node:fs';
 const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5-5';
 
 export function aiEnabled() {
-  if (process.env.SITEPULSE_AI === 'off') return false;
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.SITEPULSE_AI === 'on');
+  const flag = process.env.PROJ4D_AI || process.env.SITEPULSE_AI; // older SITEPULSE_* name still accepted
+  if (flag === 'off') return false;
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || flag === 'on');
 }
 
 let client;

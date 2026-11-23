@@ -1,7 +1,7 @@
-// SitePulse service worker: makes the app installable and shows an offline page when there's no signal.
+// Proj4D service worker: makes the app installable and shows an offline page when there's no signal.
 // It only caches the app's own code, icons and the offline page — never API data, photos or logins,
 // so everything you see is always live.
-const CACHE = 'sitepulse-v1';
+const CACHE = 'proj4d-v3';
 const PRECACHE = ['/offline.html', '/icons/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -47,4 +47,56 @@ self.addEventListener('fetch', (event) => {
       )
     );
   }
+});
+
+// ---------- Push notifications
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'Proj4D', body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'Proj4D';
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
+      tag: data.tag || undefined,
+      renotify: Boolean(data.tag),
+      data: { url: data.url || '/' },
+      timestamp: Date.now(),
+    })
+  );
+});
+
+// Tapping a notification opens (or focuses) Proj4D on the related page.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+      if (win) return win.focus().then((w) => (w || win).navigate(target)).catch(() => self.clients.openWindow(target));
+      return self.clients.openWindow(target);
+    })
+  );
+});
+
+// The browser can renew a subscription; tell the server about the new one.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const cfg = await fetch('/api/push/config', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null));
+      if (!cfg) return;
+      const sub = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: cfg.publicKey });
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+    })()
+  );
 });

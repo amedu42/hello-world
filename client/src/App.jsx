@@ -7,6 +7,7 @@ import { LegalFooter, PrivacyPage, TermsPage } from './pages/LegalPages.jsx';
 import AttendancePage from './pages/AttendancePage.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
 import MaterialsPage from './pages/MaterialsPage.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ReportForm from './pages/ReportForm.jsx';
@@ -107,7 +108,7 @@ export default function App() {
               <rect width="32" height="32" rx="7" fill="var(--brand)" />
               <path d="M7 23h18M10 23V13l6-4 6 4v10" stroke="var(--accent)" strokeWidth="2.6" fill="none" strokeLinejoin="round" />
             </svg>
-            <span>SitePulse</span>
+            <span>Proj4D</span>
           </Link>
           <div className="topbar-right">
             <span className={`ai-pill ${status.ai ? 'on' : ''}`} title={status.ai ? 'AI features are available' : 'AI features are off on this server'}>
@@ -126,6 +127,7 @@ export default function App() {
                 <Link to="/">Projects</Link>
                 <Link to="/team">Team</Link>
                 {me.user.role === 'admin' && <Link to="/settings">Company settings</Link>}
+                <Link to="/notifications">Notifications</Link>
                 <Link to="/account">Your account</Link>
                 {me.platform_admin && <Link to="/admin">Platform admin</Link>}
                 <button onClick={logout}>Log out</button>
@@ -156,6 +158,7 @@ export default function App() {
               <Route path="/team" element={<TeamPage />} />
               <Route path="/settings" element={<CompanySettings />} />
               <Route path="/account" element={<AccountPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               {me.platform_admin && <Route path="/admin" element={<AdminPage />} />}
               <Route path="*" element={<p className="muted">Page not found. <Link to="/">Back to projects</Link></p>} />
             </Routes>

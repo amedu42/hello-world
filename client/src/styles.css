@@ -713,3 +713,23 @@ tr.editing td { vertical-align: middle; }
   .act-progress .status-dot { font-size: 10.5px; min-width: 72px; }
   .act-group-head { padding: 4px 14px; font-size: 11px; }
 }
+
+/* ---------- notifications */
+.wide-narrow { max-width: 720px; }
+.no-margin { margin: 0; }
+.device-status { font-weight: 700; margin-top: 2px; }
+.device-status.on { color: var(--good); }
+.device-status.blocked, .device-status.unsupported { color: var(--bad); }
+.device-status.off, .device-status.ios-install-first { color: var(--warn); }
+.notif-list { display: flex; flex-direction: column; }
+.notif-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.notif-row:last-child { border-bottom: 0; }
+.notif-row input[type='checkbox'] { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--brand-2); }
+.notif-row > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.notif-row .inline-field { margin-top: 6px; flex-wrap: wrap; }
+.notif-row .inline-field input { min-height: 34px; padding: 4px 8px; }
+.notif-row .inline-field input.pts { width: 72px; }
+.day-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.notif-prompt { align-items: center; flex-wrap: wrap; }
+.notif-prompt > span:first-child { flex: 1 1 260px; }
+.auth-brand { color: var(--ink); text-decoration: none !important; }

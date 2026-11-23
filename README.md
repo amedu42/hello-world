@@ -1,4 +1,4 @@
-# SitePulse – construction project tracking & daily site reports
+# Proj4D – construction project tracking & daily site reports
 
 An AI-enabled web app for construction professionals to track project progress and file daily site reports.
 
@@ -29,7 +29,7 @@ An AI-enabled web app for construction professionals to track project progress a
   - **PDF download** for one day up to 92 days (landscape, company colour and logo): stock summary (stock at start, received, used, wasted, stock at end, reorder level, status), deliveries log (supplier, delivery note, recorded by), usage and wastage log (activity, location), and totals used per programme activity, with sign-off lines.
 - **Daily report PDF** also includes the day's **attendance** (present / late / absent / on site, by trade, absentees with reasons) and **materials** (opening / received / used / wasted / closing, delivery details, usage by activity, low stock). The AI or template summary mentions both.
 - **Auto-calculated progress**: after each report, every task's progress is set from the most recent report that mentions it. Overall progress is the duration-weighted average (or weighted by a Weight/Value column, or a weight you set per task).
-- **All PDFs** carry the SitePulse logo and "Made with SitePulse" in the footer of every page (a link to the app when `APP_URL` or Render's address is known).
+- **All PDFs** carry the Proj4D logo and "Made with Proj4D" in the footer of every page (a link to the app when `APP_URL` or Render's address is known).
 - **PDF daily reports**: branded A4 report with a summary, progress table, all site details, a photo grid and sign-off lines.
 - **AI features** (Claude, optional)
   - *Quick fill from notes*: type the day in your own words; AI matches the work to programme activities and fills in the form for you to check.
@@ -37,13 +37,41 @@ An AI-enabled web app for construction professionals to track project progress a
   - *Project insights*: risks and recommended actions based on the programme and the last 14 reports.
   - *Programme reading*: PDF programmes and spreadsheets with unusual layouts.
 
+## Public homepage
+
+Visitors who aren't logged in see the homepage at `/` (logged-in users go straight to their projects; the homepage is always at `/home`). It is plain server-rendered HTML (`server/landing.js`) with real screenshots in `client/public/home/`, so it loads fast and search engines can read it. It includes features, how it works, installing as an app, FAQ, and a **Book a demo** form.
+
+- Demo requests are saved and listed on the platform owner's **Platform admin** page (status: new / contacted / closed); the owner gets a push notification and, when SMTP is set up, an email. Spam protection: hidden honeypot field, 5 requests per hour per address, same-site check.
+- Settings: `CONTACT_WHATSAPP` (shows a WhatsApp button), `CONTACT_EMAIL`, `HOMEPAGE_URL` (canonical URL, link previews, sitemap), and `APP_ORIGIN` if the app later moves to its own domain (e.g. homepage on `proj4d.com`, app on `app.proj4d.com`): every homepage link into the app is then prefixed with it.
+- `robots.txt` and `sitemap.xml` are served; the installed app starts at `/login`.
+
 ## Install as an app
 
-SitePulse is an installable web app (PWA). In Chrome on Android, open the site and choose **Install app** (menu ⋮ → *Install app* or *Add to home screen*); on iPhone, Safari → Share → *Add to Home Screen*; on a computer, the install icon in Chrome/Edge's address bar. It then opens full screen from its own icon.
+Proj4D is an installable web app (PWA). In Chrome on Android, open the site and choose **Install app** (menu ⋮ → *Install app* or *Add to home screen*); on iPhone, Safari → Share → *Add to Home Screen*; on a computer, the install icon in Chrome/Edge's address bar. It then opens full screen from its own icon.
 
 - `client/public/manifest.webmanifest`: name, colours, start page, icons (`client/public/icons/`, including maskable icons for Android).
 - `client/public/sw.js`: service worker. It caches only the app's code, icons and an offline page, never API data, photos or PDFs, so everything shown is live; with no connection it shows `offline.html`.
 - The server sends `sw.js`, `index.html` and the manifest with `Cache-Control: no-cache` so installed apps pick up new releases immediately; hashed files in `/assets` are cached for a year.
+
+## Push notifications
+
+Each person turns notifications on per device (user menu → **Notifications**, or the prompt on the projects page) and chooses what to receive:
+
+| Notification | When | Default |
+|---|---|---|
+| Attendance register reminder | At the person's reminder time (08:00) if today's register hasn't been taken (projects with a workforce) | everyone |
+| Daily report reminder | At the reminder time (17:00) if today's report hasn't been filed | everyone |
+| Attendance register submitted | When a day's register is first saved | admins |
+| Daily report submitted | When a new report is filed | admins |
+| High-severity site issue | When a report records a new High issue | everyone |
+| Low stock | When a material drops to its reorder level or below zero (once a day per material) | everyone |
+| Behind schedule | When a project is at least N points behind plan (default 10; once a week per project) | admins |
+
+Reminders use each person's time zone and working days (default Mon–Sat), and are sent up to 4 hours late if the server was briefly down. Nobody is notified about their own action. Tapping a notification opens the related page.
+
+- Uses standard Web Push (`web-push`). The VAPID keys are generated on first start and kept in `DATA_DIR/vapid.json` (or set `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`). Keep the data disk so existing subscriptions stay valid.
+- iPhone/iPad: works from iOS 16.4 once Proj4D is added to the home screen.
+- `PROJ4D_REMINDERS=off` disables the reminder clock (e.g. for a second server instance). The older `SITEPULSE_*` setting names are still accepted.
 
 ## Accounts
 
