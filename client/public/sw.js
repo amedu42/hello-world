@@ -1,7 +1,7 @@
-// SitePulse service worker: makes the app installable and shows an offline page when there's no signal.
+// Proj4D service worker: makes the app installable and shows an offline page when there's no signal.
 // It only caches the app's own code, icons and the offline page — never API data, photos or logins,
 // so everything you see is always live.
-const CACHE = 'sitepulse-v2';
+const CACHE = 'proj4d-v3';
 const PRECACHE = ['/offline.html', '/icons/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -55,9 +55,9 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'SitePulse', body: event.data ? event.data.text() : '' };
+    data = { title: 'Proj4D', body: event.data ? event.data.text() : '' };
   }
-  const title = data.title || 'SitePulse';
+  const title = data.title || 'Proj4D';
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || '',
@@ -71,7 +71,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Tapping a notification opens (or focuses) SitePulse on the related page.
+// Tapping a notification opens (or focuses) Proj4D on the related page.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = new URL(event.notification.data?.url || '/', self.location.origin).href;

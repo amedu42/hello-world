@@ -37,5 +37,5 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-      - key: MAIL_FROM             # e.g. "SitePulse <no-reply@yourdomain.com>"
+      - key: MAIL_FROM             # e.g. "Proj4D <no-reply@yourdomain.com>"
         sync: false

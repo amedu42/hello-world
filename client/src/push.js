@@ -31,10 +31,10 @@ function deviceName() {
 /** Asks permission (if needed) and subscribes this device. Throws with a readable message. */
 export async function enablePush() {
   const status = await pushStatus();
-  if (status === 'ios-install-first') throw new Error('On iPhone, first add SitePulse to your home screen (Share → Add to Home Screen), then open it from there.');
+  if (status === 'ios-install-first') throw new Error('On iPhone, first add Proj4D to your home screen (Share → Add to Home Screen), then open it from there.');
   if (status === 'unsupported') throw new Error("This browser doesn't support notifications.");
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') throw new Error('Notifications are blocked for SitePulse. Allow them in your browser or phone settings, then try again.');
+  if (permission !== 'granted') throw new Error('Notifications are blocked for Proj4D. Allow them in your browser or phone settings, then try again.');
   const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
   await navigator.serviceWorker.ready;
   const { publicKey } = await api.get('/api/push/config');
@@ -44,7 +44,7 @@ export async function enablePush() {
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) });
     } catch {
       throw new Error(
-        "This browser couldn't sign up for notifications. Check that notifications are allowed for SitePulse and that you're online, then try again. If it keeps failing, use Chrome, Edge, Firefox or Safari (on iPhone: from the home-screen app)."
+        "This browser couldn't sign up for notifications. Check that notifications are allowed for Proj4D and that you're online, then try again. If it keeps failing, use Chrome, Edge, Firefox or Safari (on iPhone: from the home-screen app)."
       );
     }
   }

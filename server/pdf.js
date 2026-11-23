@@ -21,7 +21,7 @@ const contrast = (a, b) => {
   return (l1 + 0.05) / (l2 + 0.05);
 };
 
-/** Builds the report palette from a company's primary colour (falls back to SitePulse navy + amber). */
+/** Builds the report palette from a company's primary colour (falls back to Proj4D navy + amber). */
 export function reportPalette(primary) {
   const base = { ink: '#1c2430', muted: '#5b6675', line: '#d9dee5', good: '#1f8a4c', bad: '#b42318', warn: '#b54708' };
   if (!primary || !/^#[0-9a-f]{6}$/i.test(primary)) {
@@ -79,8 +79,8 @@ export function drawBrandHeader(doc, { C, branding = {}, title, lines = [], righ
   return BAND;
 }
 
-/** The SitePulse app icon (navy tile, amber house outline), drawn as vectors at (x, y) with the given size. */
-export function drawSitePulseLogo(doc, x, y, size) {
+/** The Proj4D app icon (navy tile, amber house outline), drawn as vectors at (x, y) with the given size. */
+export function drawAppLogo(doc, x, y, size) {
   const k = size / 32; // icon is designed on a 32 × 32 grid
   doc.save();
   doc.translate(x, y).scale(k);
@@ -89,16 +89,16 @@ export function drawSitePulseLogo(doc, x, y, size) {
   doc.restore();
 }
 
-const SITEPULSE_URL = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+const APP_LINK = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
 
 /**
- * Footer on every page: "Company · Project · Document" on the left; the SitePulse logo with
- * "Made with SitePulse" and "Page x of y" on the right.
+ * Footer on every page: "Company · Project · Document" on the left; the Proj4D logo with
+ * "Made with Proj4D" and "Page x of y" on the right.
  */
 export function drawFooters(doc, C, leftParts) {
   const L = doc.page.margins.left;
   const range = doc.bufferedPageRange();
-  const made = 'Made with SitePulse';
+  const made = 'Made with Proj4D';
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     const W = doc.page.width - L - doc.page.margins.right;
@@ -128,10 +128,10 @@ export function drawFooters(doc, C, leftParts) {
     }
     doc.text(left, L, fy, { lineBreak: false });
 
-    // Right: [logo] Made with SitePulse  ·  Page x of y
-    drawSitePulseLogo(doc, bx, fy - 1.5, ICON);
+    // Right: [logo] Made with Proj4D  ·  Page x of y
+    drawAppLogo(doc, bx, fy - 1.5, ICON);
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#16324f').text(made, bx + ICON + GAP, fy, { lineBreak: false });
-    if (SITEPULSE_URL) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, SITEPULSE_URL);
+    if (APP_LINK) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, APP_LINK);
     doc.font('Helvetica').fillColor(C.muted).text('·', bx + ICON + GAP + madeW + SEP / 2 - 1.5, fy, { lineBreak: false });
     doc.text(page, L + W - pageW, fy, { lineBreak: false });
     doc.page.margins.bottom = oldBottom;

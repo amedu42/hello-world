@@ -43,20 +43,20 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export function resetEmail({ name, link, minutes }) {
   const text = `Hi ${name},
 
-Someone (hopefully you) asked to reset your SitePulse password.
+Someone (hopefully you) asked to reset your Proj4D password.
 Open this link within ${minutes} minutes to choose a new password:
 
 ${link}
 
 If you didn't ask for this, you can ignore this email; your password won't change.
 
-– SitePulse`;
+– Proj4D`;
   const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:15px;color:#1c2430;max-width:520px">
   <p>Hi ${esc(name)},</p>
-  <p>Someone (hopefully you) asked to reset your SitePulse password. Use the button below within ${minutes} minutes to choose a new password.</p>
+  <p>Someone (hopefully you) asked to reset your Proj4D password. Use the button below within ${minutes} minutes to choose a new password.</p>
   <p><a href="${esc(link)}" style="display:inline-block;background:#f2a900;color:#1c1600;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none">Choose a new password</a></p>
   <p style="color:#687384;font-size:13px">Or copy this link: ${esc(link)}</p>
   <p style="color:#687384;font-size:13px">If you didn't ask for this, ignore this email; your password won't change.</p>
 </div>`;
-  return { subject: 'Reset your SitePulse password', text, html };
+  return { subject: 'Reset your Proj4D password', text, html };
 }

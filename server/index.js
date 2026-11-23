@@ -620,4 +620,4 @@ app.use((err, _req, res, _next) => {
 
 const PORT = Number(process.env.PORT) || 3001;
 startReminderScheduler();
-app.listen(PORT, () => console.log(`SitePulse API on http://localhost:${PORT}  (AI ${aiEnabled() ? 'enabled' : 'disabled – set ANTHROPIC_API_KEY to enable'})`));
+app.listen(PORT, () => console.log(`Proj4D API on http://localhost:${PORT}  (AI ${aiEnabled() ? 'enabled' : 'disabled – set ANTHROPIC_API_KEY to enable'})`));

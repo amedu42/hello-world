@@ -87,7 +87,7 @@ export default function NotificationsPage() {
     off: 'Off for this device',
     blocked: 'Blocked in this browser',
     unsupported: 'Not supported by this browser',
-    'ios-install-first': 'Add SitePulse to your home screen first',
+    'ios-install-first': 'Add Proj4D to your home screen first',
   }[status] || '…';
 
   return (
@@ -114,7 +114,7 @@ export default function NotificationsPage() {
           </div>
         </div>
         {status === 'blocked' && <p className="small muted">Notifications were blocked. Allow them for this site in your browser's site settings (on Android: tap the padlock or ⓘ next to the address, or long-press the installed app icon → App info → Notifications), then come back here.</p>}
-        {status === 'ios-install-first' && <p className="small muted">On iPhone and iPad, notifications work once SitePulse is on your home screen: open it in Safari, tap Share → <b>Add to Home Screen</b>, then open SitePulse from the home screen and turn notifications on here.</p>}
+        {status === 'ios-install-first' && <p className="small muted">On iPhone and iPad, notifications work once Proj4D is on your home screen: open it in Safari, tap Share → <b>Add to Home Screen</b>, then open Proj4D from the home screen and turn notifications on here.</p>}
         <p className="small muted">You're set up on {cfg.devices} device{cfg.devices === 1 ? '' : 's'}. Turn notifications on separately on each phone or computer you use.</p>
       </section>
 
@@ -199,7 +199,7 @@ export function NotificationPrompt() {
       <span>
         <b>Get reminders and alerts.</b>{' '}
         {status === 'ios-install-first'
-          ? 'On iPhone, add SitePulse to your home screen (Share → Add to Home Screen) to receive notifications.'
+          ? 'On iPhone, add Proj4D to your home screen (Share → Add to Home Screen) to receive notifications.'
           : 'Reminders to take the register and file the daily report, plus alerts for site issues, low stock and progress.'}
         {error && <span className="neg"> {error}</span>}
       </span>

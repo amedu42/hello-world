@@ -331,7 +331,7 @@ export async function runReminders(now = new Date()) {
 
 let timer = null;
 export function startReminderScheduler() {
-  if (timer || process.env.SITEPULSE_REMINDERS === 'off') return;
+  if (timer || (process.env.PROJ4D_REMINDERS || process.env.SITEPULSE_REMINDERS) === 'off') return;
   const tick = () => runReminders().catch((e) => console.warn('Reminder run failed:', e.message));
   setTimeout(tick, 15000).unref();
   timer = setInterval(tick, 60000);
@@ -402,6 +402,6 @@ pushRouter.put('/prefs', (req, res) => {
 });
 
 pushRouter.post('/test', async (req, res) => {
-  const n = await sendToUser(req.user.id, { title: 'SitePulse notifications are on', body: `This is a test for ${req.user.name}. You'll get your selected alerts on this device.`, url: '/notifications', tag: 'test' }, { ttl: 600 });
+  const n = await sendToUser(req.user.id, { title: 'Proj4D notifications are on', body: `This is a test for ${req.user.name}. You'll get your selected alerts on this device.`, url: '/notifications', tag: 'test' }, { ttl: 600 });
   res.json({ sent: n });
 });

@@ -108,7 +108,7 @@ export default function App() {
               <rect width="32" height="32" rx="7" fill="var(--brand)" />
               <path d="M7 23h18M10 23V13l6-4 6 4v10" stroke="var(--accent)" strokeWidth="2.6" fill="none" strokeLinejoin="round" />
             </svg>
-            <span>SitePulse</span>
+            <span>Proj4D</span>
           </Link>
           <div className="topbar-right">
             <span className={`ai-pill ${status.ai ? 'on' : ''}`} title={status.ai ? 'AI features are available' : 'AI features are off on this server'}>

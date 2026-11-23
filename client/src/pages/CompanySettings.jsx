@@ -156,7 +156,7 @@ export default function CompanySettings() {
                 }}
                 aria-label="Hex colour"
               />
-              {color && <button className="btn ghost sm" onClick={() => setColor('')}>Use SitePulse default</button>}
+              {color && <button className="btn ghost sm" onClick={() => setColor('')}>Use Proj4D default</button>}
             </div>
             <div className="swatches">
               {PRESETS.map((c) => (

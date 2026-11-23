@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "SitePulse – Construction Site Reports",
-  "short_name": "SitePulse",
+  "name": "Proj4D – Construction Site Reports",
+  "short_name": "Proj4D",
   "description": "Construction project progress, daily site reports, attendance and materials registers.",
   "start_url": "/",
   "scope": "/",
