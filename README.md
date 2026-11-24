@@ -44,6 +44,7 @@ Visitors who aren't logged in see the homepage at `/` (logged-in users go straig
 - Demo requests are saved and listed on the platform owner's **Platform admin** page (status: new / contacted / closed); the owner gets a push notification and, when SMTP is set up, an email. Spam protection: hidden honeypot field, 5 requests per hour per address, same-site check.
 - Settings: `CONTACT_WHATSAPP` (shows a WhatsApp button), `CONTACT_EMAIL`, `HOMEPAGE_URL` (canonical URL, link previews, sitemap), and `APP_ORIGIN` if the app later moves to its own domain (e.g. homepage on `proj4d.com`, app on `app.proj4d.com`): every homepage link into the app is then prefixed with it.
 - `robots.txt` and `sitemap.xml` are served; the installed app starts at `/login`.
+- **Custom domain:** when `APP_URL` (or `HOMEPAGE_URL`) is a custom domain such as `https://proj4d.com`, requests to the default `…onrender.com` address are redirected there (301 for pages, 308 for other requests, path and query kept). `/healthz` is never redirected. Disable with `CANONICAL_REDIRECT=off`.
 
 ## Install as an app
 
