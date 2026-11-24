@@ -21,6 +21,25 @@ app.disable('x-powered-by');
 app.get('/healthz', (_req, res) => res.send('ok'));
 
 app.set('trust proxy', 1); // behind Render's proxy: lets secure cookies and req.ip work
+
+// Send visitors on the default Render address (…onrender.com) to the custom domain, so old links and
+// bookmarks land on proj4d.com and search engines index only one address. Only *.onrender.com hosts are
+// redirected, so the custom domain itself can never loop. Set CANONICAL_REDIRECT=off to disable.
+const canonicalOrigin = (() => {
+  try {
+    const u = new URL(process.env.APP_URL || process.env.HOMEPAGE_URL || '');
+    return u.hostname.endsWith('.onrender.com') ? null : u.origin;
+  } catch {
+    return null;
+  }
+})();
+if (canonicalOrigin && process.env.CANONICAL_REDIRECT !== 'off') {
+  app.use((req, res, next) => {
+    if (!req.hostname.endsWith('.onrender.com')) return next();
+    // 301 for pages and files; 308 keeps the method and body for anything else (e.g. form posts).
+    res.redirect(['GET', 'HEAD'].includes(req.method) ? 301 : 308, canonicalOrigin + req.originalUrl);
+  });
+}
 app.use(express.json({ limit: '5mb' }));
 app.use(loadSession);
 app.use(sameOrigin);
