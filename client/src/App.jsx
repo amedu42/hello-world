@@ -10,6 +10,7 @@ import MaterialsPage from './pages/MaterialsPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
+import ProgrammeGeneratorPage from './pages/ProgrammeGeneratorPage.jsx';
 import ReportForm from './pages/ReportForm.jsx';
 import ReportView from './pages/ReportView.jsx';
 import { AccountPage, AdminPage, TeamPage } from './pages/TeamPages.jsx';
@@ -153,6 +154,7 @@ export default function App() {
               <Route path="/projects/:id/reports/new" element={<ReportForm />} />
               <Route path="/projects/:id/attendance" element={<AttendancePage />} />
               <Route path="/projects/:id/materials" element={<MaterialsPage />} />
+              <Route path="/projects/:id/programme-generator" element={<ProgrammeGeneratorPage />} />
               <Route path="/reports/:rid" element={<ReportView />} />
               <Route path="/reports/:rid/edit" element={<ReportForm />} />
               <Route path="/team" element={<TeamPage />} />

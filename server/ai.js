@@ -19,8 +19,10 @@ function getClient() {
 }
 
 /** One structured-output call. Returns the parsed object or throws a readable Error. */
+// Always streamed: the SDK refuses non-streaming calls that could run past 10 minutes, and large
+// documents with a big max_tokens easily qualify.
 async function structured({ system, content, schema, effort = 'medium', maxTokens = 16000 }) {
-  const response = await getClient().beta.messages.parse({
+  const stream = getClient().beta.messages.stream({
     model: MODEL,
     max_tokens: maxTokens,
     betas: ['server-side-fallback-2026-07-01'],
@@ -29,6 +31,7 @@ async function structured({ system, content, schema, effort = 'medium', maxToken
     messages: [{ role: 'user', content }],
     output_config: { effort, format: betaZodOutputFormat(schema) },
   });
+  const response = await stream.finalMessage();
   if (response.stop_reason === 'refusal') {
     throw new Error('The AI declined this request' + (response.stop_details?.explanation ? `: ${response.stop_details.explanation}` : '.'));
   }
@@ -41,6 +44,11 @@ export function describeAIError(err) {
   if (err instanceof Anthropic.AuthenticationError) return 'AI is not authorised: check ANTHROPIC_API_KEY.';
   if (err instanceof Anthropic.RateLimitError) return 'AI rate limit reached, please try again in a minute.';
   if (err instanceof Anthropic.APIConnectionError) return 'Could not reach the AI service.';
+  if (err instanceof Anthropic.BadRequestError) {
+    const msg = err.error?.error?.message || err.message || '';
+    if (/too long|too many|exceed|pages|size/i.test(msg)) return `The documents are too large for the AI to read in one go (${msg}). Remove some files or split large PDFs.`;
+    return `The AI could not process this request (${msg || 'bad request'}).`;
+  }
   if (err instanceof Anthropic.APIError) return `AI service error (${err.status ?? 'unknown'}).`;
   return err?.message || 'AI request failed.';
 }
@@ -242,4 +250,56 @@ Base every point on the data: compare actual against planned progress, look for 
     effort: 'medium',
     maxTokens: 8000,
   });
+}
+
+// ---------------------------------------------------------------- Work programme generator (premium)
+
+const PlanSchema = z.object({
+  title: z.string().describe('Programme title, usually the project name in capitals, e.g. "GUOBADIA COMPLEX RENOVATION"'),
+  scope_summary: z.string().describe('3-6 sentences: what the documents show will be built, as the planner understood it'),
+  assumptions: z.array(z.string()).describe('Planning assumptions: crew sizes, productivity, curing times, lead times, anything not in the documents'),
+  phases: z.array(
+    z.object({
+      name: z.string().describe('Phase / work section, e.g. "Substructure (Building Extension)"'),
+      tasks: z.array(
+        z.object({
+          ref: z.string().describe('Unique id for this task across the whole programme, e.g. "T1", "T2"'),
+          name: z.string().describe('Short verb-led task name, e.g. "Excavation of wall trenches and column footings"'),
+          duration_days: z.number().describe('Whole working days; 0 only for milestones'),
+          predecessors: z.array(
+            z.object({
+              ref: z.string().describe('ref of an earlier task'),
+              type: z.enum(['FS', 'SS', 'FF', 'SF']),
+              lag_days: z.number().describe('Working days of lag; negative for lead/overlap'),
+            })
+          ),
+          basis: z.string().nullable().describe('BOQ item(s) / quantities / drawing this task and its duration are based on, briefly'),
+        })
+      ),
+    })
+  ),
+});
+
+const PLANNER_SYSTEM = `You are a senior construction planner who prepares contract work programmes (Gantt charts) in MS Project for building contractors.
+From the drawings, bill of quantities (BOQ), dates and notes you are given, produce a realistic, logically linked programme of works.
+
+How to work:
+- Read every document. Use the drawings for scope and build sequence (number of floors, structural system, foundations, roof, openings, services, external works) and the BOQ for quantities, which drive durations.
+- Size each duration from the quantity and a realistic output rate for a typical crew in the project's region and construction method. Note the main rates in the assumptions.
+- Sequence work the way it is built: mobilisation and setting out, procurement and approvals, demolition/strip-out where relevant, substructure, frame and slabs floor by floor, blockwork/walls, roof, services first fix, plastering/screeds, services second fix, finishes, external works, testing and commissioning, snagging, handover.
+- Link every task (except the first) with predecessors so the logic drives the dates. Use FS normally; SS/FF with lags where trades overlap (e.g. blockwork and lintels). Allow concrete curing and striking times as lags or tasks. Include long-lead procurement running in parallel.
+- Add zero-duration milestones for key events, such as "Substructure complete", "Roof watertight", "Practical completion".
+- The programme must finish on or before the target completion date given the working calendar. If that is not realistic, still plan the most efficient logical sequence (overlap trades, parallel work fronts) and say so clearly in the assumptions.
+- Group tasks into phases in construction order. Typically 30-150 tasks depending on the size of the job; more detail for the near-term work.
+- Task names are concise and verb-led, written the way site teams write them: "Blockwork to lintel level", "Shuttering and iron work for lintels", "Casting of lintels".
+- Do not invent scope the documents do not support. Where the documents are thin, plan the typical scope for the described building and list what you assumed.
+- Do not output any dates: the system calculates them from your durations and links.`;
+
+/**
+ * Asks Claude for a phased, linked programme. docs: content blocks for the uploaded files.
+ * brief: text describing the project, calendar and notes.
+ */
+export async function generateProgrammePlan({ brief, docs }) {
+  const content = [...docs, { type: 'text', text: brief }];
+  return structured({ system: PLANNER_SYSTEM, content, schema: PlanSchema, effort: 'high', maxTokens: 64000 });
 }
