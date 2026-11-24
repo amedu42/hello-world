@@ -97,11 +97,16 @@ export function TermsPage() {
             keep.
           </p>
 
-          <h2>6. Fees</h2>
-          <p>
-            Fees, if any, are as agreed with you when you subscribe. We may change prices for future billing periods with at least 30 days' notice. If fees are not paid
-            when due we may suspend the account after notice; your data is kept during suspension.
-          </p>
+          <h2>6. Plans, trial and payment</h2>
+          <ul>
+            <li>Proj4D has a Free plan and paid plans. What each plan includes and its price are shown on the Plan &amp; billing page when you subscribe.</li>
+            <li>New companies get a 7-day free trial of all features. No card is needed. When the trial ends, the company moves to the Free plan unless it subscribes.</li>
+            <li>Paid plans are billed in advance, monthly or yearly, through our payment provider Paystack, and <b>renew automatically</b> at the end of each period until cancelled.</li>
+            <li>You can cancel at any time from the Plan &amp; billing page. You keep the paid plan until the end of the period already paid for; payments already made are not refunded except where the law requires.</li>
+            <li>When you change to a different paid plan, the new plan starts immediately and is charged in full; unused time on the previous plan is not refunded.</li>
+            <li>If a renewal payment fails we retry for a few days, then move the company to the Free plan. If the company is over the Free plan's limits, nothing is deleted: extra members are paused until the plan is upgraded.</li>
+            <li>We may change prices for future billing periods with at least 30 days' notice. Prices do not include taxes that may apply in your country.</li>
+          </ul>
 
           <h2>7. Availability and backups</h2>
           <p>
@@ -185,6 +190,10 @@ export function PrivacyPage() {
           <p>We share data only with providers that help us run Proj4D:</p>
           <ul>
             <li><b>Render</b> (hosting): stores the application database and photos.</li>
+            <li>
+              <b>Paystack</b> (payments): when an admin subscribes, Paystack receives their email address and collects the card, bank or USSD payment details on its own
+              secure pages. We never see or store full card numbers; we keep the plan, amounts, dates and payment references.
+            </li>
             <li><b>Email delivery provider</b>: sends password reset and account emails.</li>
             <li><b>Browser push services</b> (Google, Apple or Mozilla, depending on your device): deliver the notifications you turn on. They receive the notification in encrypted form.</li>
             <li>

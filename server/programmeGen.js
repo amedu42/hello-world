@@ -11,6 +11,7 @@ import { db, UPLOAD_DIR } from './db.js';
 import { companyProject, isPlatformAdmin } from './auth.js';
 import { aiEnabled, describeAIError, generateProgrammePlan } from './ai.js';
 import { renderProgrammePdf } from './programmePdf.js';
+import { planOf } from './plans.js';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS programme_drafts (
@@ -43,18 +44,19 @@ class HttpError extends Error {
   }
 }
 
-const DAILY_LIMIT = Number(process.env.PROGRAMME_DAILY_LIMIT) || 10; // generations per company per day
 const MAX_TOTAL_BYTES = 22 * 1024 * 1024; // keeps the AI request under the API's 32 MB limit once base64-encoded
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Whether the user's company may use the generator. */
+/** Whether the user's company may use the generator (Professional plan and above, or the trial). */
 export function hasProgrammeAccess(req) {
   if (process.env.PREMIUM_PROGRAMMES === 'all') return true;
   if (isPlatformAdmin(req.user)) return true;
-  const row = db.prepare('SELECT premium_programmes FROM companies WHERE id = ?').get(req.company.id);
-  return Boolean(row?.premium_programmes);
+  return planOf(req.company.id).programmes;
 }
+
+/** Generations per company per day: the plan's allowance, or PROGRAMME_DAILY_LIMIT if set. */
+const dailyLimit = (req) => Number(process.env.PROGRAMME_DAILY_LIMIT) || planOf(req.company.id).programmes_per_day || 10;
 
 // ------------------------------------------------------------------ dates & calendar
 
@@ -555,7 +557,7 @@ function view(req, project, d) {
   const out = {
     access: hasProgrammeAccess(req),
     ai: aiEnabled(),
-    daily_limit: DAILY_LIMIT,
+    daily_limit: dailyLimit(req),
     max_total_mb: Math.round(MAX_TOTAL_BYTES / 1024 / 1024),
     project: { id: project.id, name: project.name, activity_count: db.prepare('SELECT COUNT(*) n FROM activities WHERE project_id = ?').get(project.id).n },
   };
@@ -593,7 +595,7 @@ const docUpload = multer({
 
 const base = '/projects/:id/programme-generator';
 const premium = (req) => {
-  if (!hasProgrammeAccess(req)) throw new HttpError(403, 'The AI programme generator is a premium feature. Contact us to enable it for your company.');
+  if (!hasProgrammeAccess(req)) throw new HttpError(403, 'The AI programme generator is included in the Professional and Business plans. Upgrade on the Plan & billing page.');
 };
 
 programmeGenRouter.get(base, (req, res) => {
@@ -672,7 +674,8 @@ programmeGenRouter.post(
       throw new HttpError(400, 'Upload the drawings and BOQ, or describe the work in the notes, so the AI has something to plan from.');
     }
     const used = db.prepare("SELECT COUNT(*) n FROM programme_generations WHERE company_id = ? AND created_at > datetime('now', '-1 day')").get(req.company.id).n;
-    if (used >= DAILY_LIMIT && !isPlatformAdmin(req.user)) throw new HttpError(429, `Your company has used today's ${DAILY_LIMIT} programme generations. Please try again tomorrow.`);
+    const limit = dailyLimit(req);
+    if (used >= limit && !isPlatformAdmin(req.user)) throw new HttpError(429, `Your company has used today's ${limit} programme generations. Please try again tomorrow.`);
 
     db.prepare('INSERT INTO programme_generations (company_id, project_id) VALUES (?, ?)').run(req.company.id, p.id);
     saveDraft(p.id, { status: 'generating', error: null });

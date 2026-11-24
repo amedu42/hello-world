@@ -50,6 +50,7 @@ export function TeamPage() {
       </div>
       <ErrorNote error={error} onClose={() => setError(null)} />
       {notice && <div className="note success"><span>{notice}</span><button className="icon-btn" onClick={() => setNotice(null)} aria-label="Dismiss">✕</button></div>}
+      {data?.billing && <SeatNote billing={data.billing} users={data.users} isAdmin={isAdmin} />}
       {!data ? <Spinner label="Loading…" /> : (
         <section className="card">
           <div className="table-scroll">
@@ -58,7 +59,7 @@ export function TeamPage() {
               <tbody>
                 {data.users.map((u) => (
                   <tr key={u.id}>
-                    <td className="cell-title"><b>{u.name}</b>{u.id === data.me && <span className="badge sm">you</span>}{u.must_change_password && <span className="badge sm">temporary password</span>}</td>
+                    <td className="cell-title"><b>{u.name}</b>{u.id === data.me && <span className="badge sm">you</span>}{u.must_change_password && <span className="badge sm">temporary password</span>}{u.paused && <span className="badge sm warn-badge" title="Over the plan's member limit: can't log in until the plan is upgraded">paused</span>}</td>
                     <td data-label="Email" className="break">{u.email}</td>
                     <td data-label="Role">
                       {isAdmin && u.id !== data.me ? (
@@ -188,6 +189,25 @@ export function AccountPage() {
   );
 }
 
+/** Members used vs the plan's limit, and what happens to anyone over it. */
+function SeatNote({ billing, users, isAdmin }) {
+  const limit = billing.limits.members;
+  if (limit == null) return null;
+  const paused = users.filter((u) => u.paused).length;
+  const full = users.length >= limit;
+  if (!full) return <p className="muted small">{users.length} of {limit} members on the {billing.plan_name} plan.</p>;
+  return (
+    <div className="note warn">
+      <span>
+        {paused > 0
+          ? `Your ${billing.plan_name} plan allows ${limit} members, so ${paused} ${paused === 1 ? 'person is' : 'people are'} paused and can't log in. `
+          : `You're using all ${limit} member places on the ${billing.plan_name} plan. `}
+        {isAdmin ? <Link to="/billing">Upgrade the plan</Link> : 'Ask your admin to upgrade the plan'} to add more people.
+      </span>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ Platform admin
 
 export function AdminPage() {
@@ -218,11 +238,10 @@ export function AdminPage() {
     }
   };
 
-  const togglePremium = async (c) => {
-    const on = !c.premium_programmes;
-    if (!confirm(`${on ? 'Turn on' : 'Turn off'} the AI programme generator (premium) for ${c.name}?`)) return;
+  const setBilling = async (c, body, question) => {
+    if (question && !confirm(question)) return;
     try {
-      await api.put(`/api/auth/admin/companies/${c.id}`, { premium_programmes: on });
+      await api.put(`/api/billing/admin/companies/${c.id}`, body);
       load();
     } catch (e) {
       setError(e.message);
@@ -250,7 +269,7 @@ export function AdminPage() {
           <section className="card">
             <div className="table-scroll">
               <table className="table stack-mobile">
-                <thead><tr><th>Company</th><th>Admin</th><th className="num">Users</th><th className="num">Projects</th><th className="num">Reports</th><th>Signed up</th><th>Last active</th><th>Status</th><th>AI programmes</th><th /></tr></thead>
+                <thead><tr><th>Company</th><th>Admin</th><th className="num">Users</th><th className="num">Projects</th><th className="num">Reports</th><th>Signed up</th><th>Last active</th><th>Status</th><th>Plan</th><th /></tr></thead>
                 <tbody>
                   {data.companies.map((c) => (
                     <tr key={c.id}>
@@ -262,10 +281,26 @@ export function AdminPage() {
                       <td className="nowrap" data-label="Signed up">{fmtDateTime(c.created_at)}</td>
                       <td className="nowrap" data-label="Last active">{fmtDateTime(c.last_login)}</td>
                       <td data-label="Status"><span className={`status-tag ${c.status === 'active' ? 'ahead' : 'behind'}`}>{c.status === 'active' ? 'Active' : 'Suspended'}</span></td>
-                      <td data-label="AI programmes">
-                        <label className="check-inline" title="Premium: AI work programme generator">
-                          <input type="checkbox" checked={Boolean(c.premium_programmes)} onChange={() => togglePremium(c)} /> {c.premium_programmes ? 'On' : 'Off'}
-                        </label>
+                      <td data-label="Plan" className="plan-cell">
+                        <b>{c.billing.plan_name}</b>{' '}
+                        <span className="muted small">
+                          {c.billing.source === 'trial' ? `trial, ${c.billing.trial_days_left}d left` : c.billing.source === 'paid' ? `paid${c.billing.subscription?.status !== 'active' ? `, ${c.billing.subscription?.status}` : ''}` : c.billing.source === 'complimentary' ? 'free of charge' : ''}
+                        </span>
+                        <div className="row gap wrap plan-actions">
+                          <select
+                            className="inline-select"
+                            value={c.billing.override || ''}
+                            aria-label={`Complimentary plan for ${c.name}`}
+                            title="Give this company a plan without payment"
+                            onChange={(e) => setBilling(c, { plan_override: e.target.value || null }, `${e.target.value ? `Give ${c.name} the ${e.target.value} plan free of charge` : `Remove ${c.name}'s complimentary plan`}?`)}
+                          >
+                            <option value="">No free plan</option>
+                            {data.plans.filter((p) => p.key !== 'free').map((p) => (
+                              <option key={p.key} value={p.key}>Free {p.name}</option>
+                            ))}
+                          </select>
+                          <button className="btn ghost sm" onClick={() => setBilling(c, { extend_trial_days: 7 }, `Add 7 trial days for ${c.name}?`)}>+7 trial days</button>
+                        </div>
                       </td>
                       <td className="right nowrap">
                         <button className="btn ghost sm" onClick={() => resetLink(c)} title="Create a password reset link for this company's admin">Reset link</button>{' '}
@@ -287,6 +322,7 @@ export function AdminPage() {
             )}
             {data.unassigned_projects > 0 && <p className="muted small">{data.unassigned_projects} project(s) from before company accounts are not assigned to any company yet.</p>}
           </section>
+          <PriceEditor />
           <DemoRequests />
         </>
       )}
@@ -354,6 +390,75 @@ function DemoRequests() {
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Plan prices (platform admin). Changing a price affects new subscriptions; existing ones keep their price. */
+function PriceEditor() {
+  const [data, setData] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    api.get('/api/billing').then(setData).catch((e) => setError(e.message));
+  }, []);
+  if (!data) return error ? <ErrorNote error={error} /> : null;
+  const key = (p, c, i) => `${p}|${c}|${i}`;
+  const val = (p, c, i) => draft[key(p, c, i)] ?? data.prices[p]?.[c]?.[i] ?? '';
+  const save = async () => {
+    setError(null);
+    try {
+      const prices = Object.entries(draft).map(([k, amount]) => {
+        const [plan, currency, interval] = k.split('|');
+        return { plan, currency, interval, amount };
+      });
+      const res = await api.put('/api/billing/admin/prices', { prices });
+      setData((d) => ({ ...d, prices: res.prices }));
+      setDraft({});
+      setSaved(true);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const paid = data.plans.filter((p) => p.key !== 'free');
+  return (
+    <section className="card">
+      <h2 className="no-margin">Plan prices</h2>
+      <p className="muted small">New prices apply to new subscriptions. Existing subscribers keep the price they signed up at.{!data.payments_enabled && ' Online payments are off until PAYSTACK_SECRET_KEY is set.'}</p>
+      <ErrorNote error={error} onClose={() => setError(null)} />
+      <div className="table-scroll">
+        <table className="table compact">
+          <thead><tr><th>Plan</th><th className="num">₦ / month</th><th className="num">₦ / year</th><th className="num">$ / month</th><th className="num">$ / year</th></tr></thead>
+          <tbody>
+            {paid.map((p) => (
+              <tr key={p.key}>
+                <td><b>{p.name}</b></td>
+                {['NGN', 'USD'].flatMap((c) => ['monthly', 'annually'].map((i) => (
+                  <td key={c + i} className="num">
+                    <input
+                      className="price-input"
+                      type="number"
+                      min="1"
+                      step={c === 'USD' ? '0.01' : '1'}
+                      value={val(p.key, c, i)}
+                      aria-label={`${p.name} ${c} ${i}`}
+                      onChange={(e) => {
+                        setSaved(false);
+                        setDraft((d) => ({ ...d, [key(p.key, c, i)]: e.target.value }));
+                      }}
+                    />
+                  </td>
+                )))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="row gap end">
+        {saved && <span className="muted small">Prices saved.</span>}
+        <button className="btn primary sm" disabled={!Object.keys(draft).length} onClick={save}>Save prices</button>
+      </div>
     </section>
   );
 }

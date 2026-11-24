@@ -13,6 +13,8 @@ import { notifyReportSaved, pushRouter, startReminderScheduler } from './notific
 import { demoAdminRouter, publicRouter } from './demo.js';
 import { renderLanding } from './landing.js';
 import { generatorFiles, programmeGenRouter } from './programmeGen.js';
+import { billingRouter, paystackEnabled } from './billing.js';
+import { planOf } from './plans.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -41,12 +43,21 @@ if (canonicalOrigin && process.env.CANONICAL_REDIRECT !== 'off') {
     res.redirect(['GET', 'HEAD'].includes(req.method) ? 301 : 308, canonicalOrigin + req.originalUrl);
   });
 }
-app.use(express.json({ limit: '5mb' }));
+app.use(
+  express.json({
+    limit: '5mb',
+    // Paystack webhooks are verified against the exact bytes received.
+    verify: (req, _res, buf) => {
+      if (req.originalUrl.startsWith('/api/billing/paystack/')) req.rawBody = buf;
+    },
+  })
+);
 app.use(loadSession);
 app.use(sameOrigin);
 app.use('/api/auth', authRouter);
 // Everything else under /api and /uploads needs a logged-in user; data is scoped to their company.
 app.use('/api/public', publicRouter); // homepage forms (no login)
+app.use('/api/billing', billingRouter); // plans & Paystack (webhook needs no login; the rest checks it)
 app.use(['/api', '/uploads'], requireUser);
 
 const storage = multer.diskStorage({
@@ -113,7 +124,14 @@ function defaultWeight(projectId) {
 
 // ------------------------------------------------------------------ Status
 
-app.get('/api/status', (_req, res) => res.json({ ai: aiEnabled() }));
+/** AI is available when the server has a key and the company's plan includes it. */
+const aiFor = (req) => aiEnabled() && planOf(req.company.id).ai;
+const requireAI = (req) => {
+  if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
+  if (!planOf(req.company.id).ai) throw new HttpError(402, 'AI features are included in the Starter plan and above. Upgrade on the Plan & billing page.');
+};
+
+app.get('/api/status', (req, res) => res.json({ ai: aiFor(req), ai_server: aiEnabled(), payments: paystackEnabled() }));
 
 // ------------------------------------------------------------------ Projects
 
@@ -135,6 +153,11 @@ const PROJECT_FIELDS = ['name', 'code', 'client', 'location', 'contractor', 'sup
 app.post('/api/projects', (req, res) => {
   const b = req.body || {};
   if (!b.name?.trim()) throw new HttpError(400, 'Project name is required');
+  const plan = planOf(req.company.id);
+  const count = db.prepare('SELECT COUNT(*) n FROM projects WHERE company_id = ?').get(req.company.id).n;
+  if (plan.projects != null && count >= plan.projects) {
+    throw new HttpError(402, `Your ${plan.name} plan allows up to ${plan.projects} projects. Upgrade your plan to add more, or delete a finished project.`);
+  }
   const vals = PROJECT_FIELDS.map((f) => (b[f] ?? '').toString().trim() || null);
   const r = db
     .prepare(`INSERT INTO projects (company_id, ${PROJECT_FIELDS.join(',')}) VALUES (?, ${PROJECT_FIELDS.map(() => '?').join(',')})`)
@@ -198,7 +221,7 @@ app.post(
     getProject(req, req.params.id);
     if (!req.file) throw new HttpError(400, 'No file uploaded');
     try {
-      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype);
+      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype, { ai: aiFor(req) });
       db.prepare('UPDATE projects SET programme_file = ? WHERE id = ?').run(req.file.originalname, req.params.id);
       res.json(result);
     } catch (e) {
@@ -441,7 +464,7 @@ async function saveReport(req, res, existingId) {
   const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, date);
   const ctx = { project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
   let summary, source = 'template', aiError = null;
-  if (aiEnabled() && data.ai_summary !== false) {
+  if (aiFor(req) && data.ai_summary !== false) {
     try {
       summary = await generateReportSummary(ctx);
       source = 'ai';
@@ -500,7 +523,7 @@ app.post(
   wrap(async (req, res) => {
     const { report, items, registers } = loadReport(req, req.params.rid);
     const project = getProject(req, report.project_id);
-    if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
+    requireAI(req);
     const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, report.report_date);
     try {
       const summary = await generateReportSummary({ project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null });
@@ -568,7 +591,7 @@ app.post(
   '/api/projects/:id/ai/parse-notes',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
+    requireAI(req);
     const notes = String(req.body?.notes || '').trim();
     if (!notes) throw new HttpError(400, 'Type or paste your site notes first');
     const date = req.body?.date || today();
@@ -588,7 +611,7 @@ app.post(
   '/api/projects/:id/ai/insights',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
+    requireAI(req);
     const activities = listActivities(p.id);
     const reports = db.prepare('SELECT * FROM reports WHERE project_id = ? ORDER BY report_date DESC LIMIT 14').all(p.id).map(decodeReport).reverse();
     if (!reports.length) throw new HttpError(400, 'Submit at least one daily report first.');
