@@ -43,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 const companyCols = db.prepare('PRAGMA table_info(companies)').all().map((c) => c.name);
 if (!companyCols.includes('logo_filename')) db.exec('ALTER TABLE companies ADD COLUMN logo_filename TEXT');
 if (!companyCols.includes('primary_color')) db.exec('ALTER TABLE companies ADD COLUMN primary_color TEXT');
+if (!companyCols.includes('premium_programmes')) db.exec('ALTER TABLE companies ADD COLUMN premium_programmes INTEGER NOT NULL DEFAULT 0'); // AI programme generator
 
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('terms_accepted_at')) db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
@@ -242,7 +243,17 @@ authRouter.get('/me', (req, res) => {
   const { id, name, logo_filename, primary_color } = req.company;
   res.json({
     user: publicUser(req.user),
-    company: { id, name, has_logo: Boolean(logo_filename), logo_version: logo_filename || null, primary_color: primary_color || null },
+    company: {
+      id,
+      name,
+      has_logo: Boolean(logo_filename),
+      logo_version: logo_filename || null,
+      primary_color: primary_color || null,
+      premium_programmes:
+        process.env.PREMIUM_PROGRAMMES === 'all' ||
+        isPlatformAdmin(req.user) ||
+        Boolean(db.prepare('SELECT premium_programmes FROM companies WHERE id = ?').get(id)?.premium_programmes),
+    },
     platform_admin: isPlatformAdmin(req.user),
   });
 });
@@ -498,10 +509,16 @@ authRouter.put(
   wrap((req, res) => {
     const c = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.params.cid);
     if (!c) throw new AuthError(404, 'Company not found');
-    const status = req.body?.status === 'suspended' ? 'suspended' : 'active';
-    if (status === 'suspended' && c.id === req.company.id) throw new AuthError(400, "You can't suspend your own company.");
-    db.prepare('UPDATE companies SET status = ? WHERE id = ?').run(status, c.id);
-    if (status === 'suspended') db.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)').run(c.id);
+    if (req.body?.premium_programmes !== undefined) {
+      // Premium: AI work programme generator
+      db.prepare('UPDATE companies SET premium_programmes = ? WHERE id = ?').run(req.body.premium_programmes ? 1 : 0, c.id);
+    }
+    if (req.body?.status !== undefined) {
+      const status = req.body.status === 'suspended' ? 'suspended' : 'active';
+      if (status === 'suspended' && c.id === req.company.id) throw new AuthError(400, "You can't suspend your own company.");
+      db.prepare('UPDATE companies SET status = ? WHERE id = ?').run(status, c.id);
+      if (status === 'suspended') db.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)').run(c.id);
+    }
     res.json({ ok: true });
   })
 );

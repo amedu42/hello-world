@@ -52,6 +52,9 @@ export default function ProjectDashboard() {
             <div className="menu-list">
               <button onClick={() => setModal('edit')}>Edit project details</button>
               <button onClick={() => setModal('programme')}>Upload work programme</button>
+              <button onClick={() => navigate(`/projects/${p.id}/programme-generator`)}>
+                Generate programme with AI{!me.company.premium_programmes && <span className="premium-tag">Premium</span>}
+              </button>
               {me.user.role === 'admin' && <button className="danger" onClick={deleteProject}>Delete project</button>}
             </div>
           </details>
@@ -67,8 +70,16 @@ export default function ProjectDashboard() {
 
       {p.activities.length === 0 && (
         <div className="note info row between wrap gap">
-          <span><b>Start by uploading the work programme.</b> Its activities become the drop-down list in daily reports. You can also type tasks in manually.</span>
-          <button className="btn primary sm" onClick={() => setModal('programme')}>Upload programme</button>
+          <span>
+            <b>Start by uploading the work programme.</b> Its activities become the drop-down list in daily reports. You can also type tasks in manually
+            {me.company.premium_programmes ? ', or have AI draft the programme from your drawings and BOQ.' : '.'}
+          </span>
+          <span className="row gap wrap">
+            {me.company.premium_programmes && (
+              <Link className="btn ghost sm" to={`/projects/${p.id}/programme-generator`}><Sparkle /> Generate with AI</Link>
+            )}
+            <button className="btn primary sm" onClick={() => setModal('programme')}>Upload programme</button>
+          </span>
         </div>
       )}
 

@@ -218,6 +218,17 @@ export function AdminPage() {
     }
   };
 
+  const togglePremium = async (c) => {
+    const on = !c.premium_programmes;
+    if (!confirm(`${on ? 'Turn on' : 'Turn off'} the AI programme generator (premium) for ${c.name}?`)) return;
+    try {
+      await api.put(`/api/auth/admin/companies/${c.id}`, { premium_programmes: on });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   return (
     <>
       <nav className="crumbs"><Link to="/">Projects</Link> / <span>Platform admin</span></nav>
@@ -239,7 +250,7 @@ export function AdminPage() {
           <section className="card">
             <div className="table-scroll">
               <table className="table stack-mobile">
-                <thead><tr><th>Company</th><th>Admin</th><th className="num">Users</th><th className="num">Projects</th><th className="num">Reports</th><th>Signed up</th><th>Last active</th><th>Status</th><th /></tr></thead>
+                <thead><tr><th>Company</th><th>Admin</th><th className="num">Users</th><th className="num">Projects</th><th className="num">Reports</th><th>Signed up</th><th>Last active</th><th>Status</th><th>AI programmes</th><th /></tr></thead>
                 <tbody>
                   {data.companies.map((c) => (
                     <tr key={c.id}>
@@ -251,6 +262,11 @@ export function AdminPage() {
                       <td className="nowrap" data-label="Signed up">{fmtDateTime(c.created_at)}</td>
                       <td className="nowrap" data-label="Last active">{fmtDateTime(c.last_login)}</td>
                       <td data-label="Status"><span className={`status-tag ${c.status === 'active' ? 'ahead' : 'behind'}`}>{c.status === 'active' ? 'Active' : 'Suspended'}</span></td>
+                      <td data-label="AI programmes">
+                        <label className="check-inline" title="Premium: AI work programme generator">
+                          <input type="checkbox" checked={Boolean(c.premium_programmes)} onChange={() => togglePremium(c)} /> {c.premium_programmes ? 'On' : 'Off'}
+                        </label>
+                      </td>
                       <td className="right nowrap">
                         <button className="btn ghost sm" onClick={() => resetLink(c)} title="Create a password reset link for this company's admin">Reset link</button>{' '}
                         <button className="btn ghost sm" onClick={() => toggle(c)}>{c.status === 'active' ? 'Suspend' : 'Reactivate'}</button>

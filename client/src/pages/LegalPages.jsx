@@ -158,7 +158,8 @@ export function PrivacyPage() {
           <ul>
             <li><b>Account details:</b> your name, work email, company name, role, and a securely hashed version of your password (we never store the password itself).</li>
             <li>
-              <b>Project content your company enters:</b> projects, uploaded programmes (read to create the activity list; the uploaded file itself is not kept), daily
+              <b>Project content your company enters:</b> projects, uploaded programmes (read to create the activity list; the uploaded file itself is not kept), documents uploaded to the
+              AI programme generator (drawings, bills of quantities and similar, kept with the project until you remove them or delete the project), daily
               reports, weather, labour and equipment, deliveries, the names and organisations of site visitors, site issues, notes and site photos (which may show people).
             </li>
             <li><b>Technical data:</b> a login session cookie, your IP address (used to protect sign-in from abuse and recorded in our hosting provider's logs), and the date of your last login.</li>
@@ -188,7 +189,7 @@ export function PrivacyPage() {
             <li><b>Browser push services</b> (Google, Apple or Mozilla, depending on your device): deliver the notifications you turn on. They receive the notification in encrypted form.</li>
             <li>
               <b>Anthropic</b> (AI features{d.ai_enabled ? '' : ', when enabled'}): when you use AI features, the relevant content (such as report details, typed site
-              notes or a programme file) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
+              notes, a programme file, or drawings and a BOQ for programme generation) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
               anthropic.com/legal for how it handles API data.
             </li>
           </ul>
