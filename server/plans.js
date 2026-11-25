@@ -9,9 +9,9 @@ const GRACE_DAYS = 3; // keep a paid plan this long after a renewal is due, whil
  * AI features: summaries (report summaries), programmes (AI programme generator), programme_pdf (read PDF programmes),
  * notes (fill reports from site notes), insights (AI project insights).
  */
-const NO_AI = { summaries: false, programmes: false, programme_pdf: false, notes: false, insights: false, progress_reports: false };
+const NO_AI = { summaries: false, programmes: false, programme_pdf: false, notes: false, insights: false, progress_reports: false, white_label: false };
 const STARTER_AI = { ...NO_AI, summaries: true, programmes: true, programme_pdf: true };
-const ALL_AI = { summaries: true, programmes: true, programme_pdf: true, notes: true, insights: true, progress_reports: true };
+const ALL_AI = { summaries: true, programmes: true, programme_pdf: true, notes: true, insights: true, progress_reports: true, white_label: true }; // white_label: PDFs without Proj4D branding
 export const AI_FEATURE_NAMES = {
   summaries: 'AI report summaries',
   programmes: 'The AI work programme generator',

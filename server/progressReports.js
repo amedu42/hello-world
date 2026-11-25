@@ -779,7 +779,7 @@ progressReportsRouter.get('/progress-reports/:rid/pdf', (req, res) => {
   res.set('Content-Type', 'application/pdf');
   res.set('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${name}"`);
   renderProgressReportPdf(
-    { project: p, report: view(r), branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null } },
+    { project: p, report: view(r), branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null, white_label: planOf(c.id).features.white_label } },
     res
   );
 });

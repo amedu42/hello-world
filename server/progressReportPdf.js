@@ -380,6 +380,6 @@ export function renderProgressReportPdf({ project, report, branding = {} }, stre
   signOff(doc, C, `Prepared by: ${report.content.prepared_by || ''}`, 'Reviewed / approved by (name, signature, date)');
 
   if (draft) watermark();
-  drawFooters(doc, C, [branding.name, project.name, `${report.type_name} ${report.code}`]);
+  drawFooters(doc, C, [branding.name, project.name, `${report.type_name} ${report.code}`], branding);
   doc.end();
 }

@@ -743,7 +743,7 @@ programmeGenRouter.get(`${base}/pdf`, (req, res) => {
       project: p,
       schedule,
       inputs: d.inputs,
-      branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null },
+      branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null, white_label: planOf(c.id).features.white_label },
     },
     res
   );

@@ -520,6 +520,7 @@ app.get('/api/reports/:rid/pdf', (req, res) => {
     name: req.company.name,
     color: req.company.primary_color,
     logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+    white_label: planOf(req.company.id).features.white_label, // no "Made with Proj4D" footer
   };
   renderReportPdf({ project, ...data, branding }, res);
 });

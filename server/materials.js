@@ -1,5 +1,6 @@
 // Daily materials register: a project's materials list with stock, and dated deliveries / usage / wastage.
 import express from 'express';
+import { planOf } from './plans.js';
 import path from 'node:path';
 import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
@@ -365,6 +366,7 @@ materialsRouter.get('/projects/:id/materials-pdf', (req, res) => {
     name: req.company.name,
     color: req.company.primary_color,
     logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+    white_label: planOf(req.company.id).features.white_label, // no "Made with Proj4D" footer
   };
   const safe = (p.code || p.name).replace(/[^\w-]+/g, '_').slice(0, 40);
   res.setHeader('Content-Type', 'application/pdf');

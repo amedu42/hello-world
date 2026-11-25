@@ -1,5 +1,6 @@
 // Daily attendance register: a project's workforce list, and who was present / late / absent each day.
 import express from 'express';
+import { planOf } from './plans.js';
 import path from 'node:path';
 import { db, tx, UPLOAD_DIR } from './db.js';
 import { companyProject } from './auth.js';
@@ -296,6 +297,7 @@ const brandingFor = (req) => ({
   name: req.company.name,
   color: req.company.primary_color,
   logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+  white_label: planOf(req.company.id).features.white_label, // no "Made with Proj4D" footer
 });
 const fileSafe = (p) => (p.code || p.name).replace(/[^\w-]+/g, '_').slice(0, 40);
 
