@@ -303,3 +303,33 @@ export async function generateProgrammePlan({ brief, docs }) {
   const content = [...docs, { type: 'text', text: brief }];
   return structured({ system: PLANNER_SYSTEM, content, schema: PlanSchema, effort: 'high', maxTokens: 64000 });
 }
+
+// ---------------------------------------------------------------- Weekly / monthly / status / milestone reports
+
+/**
+ * Writes the narrative sections of a progress report from figures computed by the app.
+ * sections: [[key, title], …]. Returns { key: text }.
+ */
+export async function generateProgressNarrative({ typeName, sections, data, notes, audience, images = [] }) {
+  const schema = z.object(Object.fromEntries(sections.map(([key, title]) => [key, z.string().describe(`Text for the "${title}" section`)])));
+  const system = `You are an experienced construction project manager writing the ${typeName} for ${audience ? `the client (${audience}) and` : 'the client and'} project stakeholders.
+Write each section from the project figures provided (computed from the programme and daily site reports) and the site team's notes.
+Rules:
+- Use only facts in the data, notes and photos. Never invent quantities, dates, names or events. If something isn't recorded, don't mention it.
+- Be specific: name activities and phases, give percentages, percentage-point variances, days ahead/behind and dates.
+- Planned vs actual: "variance" is actual minus planned in percentage points (negative = behind). schedule_variance_days > 0 means behind programme.
+- Professional, plain, factual site-report English for clients. Short paragraphs; you may use lines starting with "- " for lists. No markdown headings, bold or tables (the report already shows the tables).
+- Keep each section about 50-170 words. The executive summary leads with overall progress and schedule position.
+- Challenges/risks: pair each problem with the action taken or recommended.
+- Dates in the form "12 Mar 2026".`;
+  const content = [];
+  for (const img of images) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } });
+    if (img.caption) content.push({ type: 'text', text: `Photo caption: ${img.caption}` });
+  }
+  content.push({
+    type: 'text',
+    text: `<report_data>\n${JSON.stringify(data)}\n</report_data>${notes ? `\n\n<site_team_notes>\n${notes}\n</site_team_notes>` : ''}\n\nWrite the sections: ${sections.map(([, t]) => t).join(', ')}.`,
+  });
+  return structured({ system, content, schema, effort: 'medium', maxTokens: 12000 });
+}

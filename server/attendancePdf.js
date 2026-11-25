@@ -240,7 +240,7 @@ export function renderDayRegisterPdf({ project, data, branding = {} }, stream) {
   }
 
   signOff(doc, C, `Taken by: ${day.taken_by || ''}`, 'Checked by (Site manager)');
-  drawFooters(doc, C, [branding.name, project.name, `Attendance register ${day.date}`]);
+  drawFooters(doc, C, [branding.name, project.name, `Attendance register ${day.date}`], branding);
   doc.end();
 }
 
@@ -389,6 +389,6 @@ export function renderPeriodRegisterPdf({ project, from, to, data, branding = {}
   }
 
   signOff(doc, C, 'Prepared by', 'Approved by (Project manager)');
-  drawFooters(doc, C, [branding.name, project.name, `Attendance ${from} to ${to}`]);
+  drawFooters(doc, C, [branding.name, project.name, `Attendance ${from} to ${to}`], branding);
   doc.end();
 }

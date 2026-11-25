@@ -11,10 +11,11 @@ import { attendanceRouter, daySummary } from './attendance.js';
 import { materialsDay, materialsRouter } from './materials.js';
 import { notifyReportSaved, pushRouter, startReminderScheduler } from './notifications.js';
 import { demoAdminRouter, publicRouter } from './demo.js';
-import { renderLanding } from './landing.js';
+import { renderLanding, renderPricing } from './landing.js';
 import { generatorFiles, programmeGenRouter } from './programmeGen.js';
 import { billingRouter, paystackEnabled } from './billing.js';
-import { planOf } from './plans.js';
+import { progressReportFiles, progressReportsRouter } from './progressReports.js';
+import { AI_FEATURE_NAMES, PLANS, TRIAL_DAYS, planOf, planWith, priceList } from './plans.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -124,14 +125,19 @@ function defaultWeight(projectId) {
 
 // ------------------------------------------------------------------ Status
 
-/** AI is available when the server has a key and the company's plan includes it. */
-const aiFor = (req) => aiEnabled() && planOf(req.company.id).ai;
-const requireAI = (req) => {
+/** An AI feature is available when the server has a key and the company's plan includes that feature. */
+const aiFor = (req, feature) => aiEnabled() && Boolean(planOf(req.company.id).features[feature]);
+const requireAI = (req, feature) => {
   if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
-  if (!planOf(req.company.id).ai) throw new HttpError(402, 'AI features are included in the Starter plan and above. Upgrade on the Plan & billing page.');
+  if (!planOf(req.company.id).features[feature]) {
+    throw new HttpError(402, `${AI_FEATURE_NAMES[feature]} is included in the ${planWith(feature).name} plan and above. Upgrade on the Plan & billing page.`);
+  }
 };
 
-app.get('/api/status', (req, res) => res.json({ ai: aiFor(req), ai_server: aiEnabled(), payments: paystackEnabled() }));
+app.get('/api/status', (req, res) => {
+  const features = Object.fromEntries(Object.keys(AI_FEATURE_NAMES).map((f) => [f, aiFor(req, f)]));
+  res.json({ ai: Object.values(features).some(Boolean), features, ai_server: aiEnabled(), payments: paystackEnabled() });
+});
 
 // ------------------------------------------------------------------ Projects
 
@@ -206,7 +212,7 @@ app.delete('/api/projects/:id', (req, res) => {
     .prepare('SELECT ph.filename FROM photos ph JOIN reports r ON r.id = ph.report_id WHERE r.project_id = ?')
     .all(req.params.id)
     .map((f) => f.filename);
-  files.push(...generatorFiles(req.params.id));
+  files.push(...generatorFiles(req.params.id), ...progressReportFiles(req.params.id));
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
   for (const f of files) fs.rm(path.join(UPLOAD_DIR, f), { force: true }, () => {});
   res.json({ ok: true });
@@ -221,7 +227,7 @@ app.post(
     getProject(req, req.params.id);
     if (!req.file) throw new HttpError(400, 'No file uploaded');
     try {
-      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype, { ai: aiFor(req) });
+      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype, { ai: aiFor(req, 'programme_pdf') });
       db.prepare('UPDATE projects SET programme_file = ? WHERE id = ?').run(req.file.originalname, req.params.id);
       res.json(result);
     } catch (e) {
@@ -464,7 +470,7 @@ async function saveReport(req, res, existingId) {
   const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, date);
   const ctx = { project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
   let summary, source = 'template', aiError = null;
-  if (aiFor(req) && data.ai_summary !== false) {
+  if (aiFor(req, 'summaries') && data.ai_summary !== false) {
     try {
       summary = await generateReportSummary(ctx);
       source = 'ai';
@@ -514,6 +520,7 @@ app.get('/api/reports/:rid/pdf', (req, res) => {
     name: req.company.name,
     color: req.company.primary_color,
     logoPath: req.company.logo_filename ? path.join(UPLOAD_DIR, req.company.logo_filename) : null,
+    white_label: planOf(req.company.id).features.white_label, // no "Made with Proj4D" footer
   };
   renderReportPdf({ project, ...data, branding }, res);
 });
@@ -523,7 +530,7 @@ app.post(
   wrap(async (req, res) => {
     const { report, items, registers } = loadReport(req, req.params.rid);
     const project = getProject(req, report.project_id);
-    requireAI(req);
+    requireAI(req, 'summaries');
     const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, report.report_date);
     try {
       const summary = await generateReportSummary({ project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null });
@@ -591,7 +598,7 @@ app.post(
   '/api/projects/:id/ai/parse-notes',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    requireAI(req);
+    requireAI(req, 'notes');
     const notes = String(req.body?.notes || '').trim();
     if (!notes) throw new HttpError(400, 'Type or paste your site notes first');
     const date = req.body?.date || today();
@@ -611,7 +618,7 @@ app.post(
   '/api/projects/:id/ai/insights',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    requireAI(req);
+    requireAI(req, 'insights');
     const activities = listActivities(p.id);
     const reports = db.prepare('SELECT * FROM reports WHERE project_id = ? ORDER BY report_date DESC LIMIT 14').all(p.id).map(decodeReport).reverse();
     if (!reports.length) throw new HttpError(400, 'Submit at least one daily report first.');
@@ -626,6 +633,7 @@ app.post(
 // ------------------------------------------------------------------ Attendance register
 
 app.use('/api', programmeGenRouter);
+app.use('/api', progressReportsRouter);
 app.use('/api', attendanceRouter);
 app.use('/api', materialsRouter);
 app.use('/api/push', pushRouter);
@@ -657,12 +665,25 @@ const sendLanding = (_req, res) => {
   res.set('Cache-Control', 'no-cache').type('html').send(landing());
 };
 app.get('/home', sendLanding);
+// Plans and pricing: rendered per request so price changes in Platform admin show straight away.
+app.get('/pricing', (_req, res) => {
+  res.set('Cache-Control', 'no-cache').type('html').send(
+    renderPricing({
+      appOrigin: (process.env.APP_ORIGIN || '').replace(/\/+$/, ''),
+      businessName: process.env.LEGAL_BUSINESS_NAME || 'Proj4D',
+      canonical: siteUrl,
+      plans: Object.values(PLANS).sort((a, b) => a.rank - b.rank),
+      prices: priceList(),
+      trialDays: TRIAL_DAYS,
+    })
+  );
+});
 app.get('/robots.txt', (_req, res) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /$\nAllow: /home\nAllow: /terms\nAllow: /privacy\nDisallow: /api/\nDisallow: /uploads/\nDisallow: /projects/\nDisallow: /reports/\n${siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /$\nAllow: /home\nAllow: /pricing\nAllow: /terms\nAllow: /privacy\nDisallow: /api/\nDisallow: /uploads/\nDisallow: /projects/\nDisallow: /reports/\n${siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
 });
 app.get('/sitemap.xml', (_req, res) => {
   const base = siteUrl || '';
-  const urls = ['/', '/signup', '/terms', '/privacy'].map((u) => `<url><loc>${base}${u}</loc></url>`).join('');
+  const urls = ['/', '/pricing', '/signup', '/terms', '/privacy'].map((u) => `<url><loc>${base}${u}</loc></url>`).join('');
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 });
 

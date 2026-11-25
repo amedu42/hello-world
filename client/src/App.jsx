@@ -12,18 +12,20 @@ import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ProgrammeGeneratorPage from './pages/ProgrammeGeneratorPage.jsx';
 import BillingPage from './pages/BillingPage.jsx';
+import ProgressReportsPage from './pages/ProgressReportsPage.jsx';
+import ProgressReportEditor from './pages/ProgressReportEditor.jsx';
 import ReportForm from './pages/ReportForm.jsx';
 import ReportView from './pages/ReportView.jsx';
 import { AccountPage, AdminPage, TeamPage } from './pages/TeamPages.jsx';
 
-const StatusCtx = createContext({ ai: false });
+const StatusCtx = createContext({ ai: false, features: {} });
 export const useStatus = () => useContext(StatusCtx);
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
 export default function App() {
   const [me, setMe] = useState(undefined); // undefined = loading, null = logged out
-  const [status, setStatus] = useState({ ai: false });
+  const [status, setStatus] = useState({ ai: false, features: {} });
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -164,6 +166,8 @@ export default function App() {
               <Route path="/projects/:id/attendance" element={<AttendancePage />} />
               <Route path="/projects/:id/materials" element={<MaterialsPage />} />
               <Route path="/projects/:id/programme-generator" element={<ProgrammeGeneratorPage />} />
+              <Route path="/projects/:id/progress-reports" element={<ProgressReportsPage />} />
+              <Route path="/progress-reports/:rid" element={<ProgressReportEditor />} />
               <Route path="/reports/:rid" element={<ReportView />} />
               <Route path="/reports/:rid/edit" element={<ReportForm />} />
               <Route path="/team" element={<TeamPage />} />

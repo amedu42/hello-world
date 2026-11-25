@@ -93,9 +93,11 @@ const APP_LINK = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').
 
 /**
  * Footer on every page: "Company · Project · Document" on the left; the Proj4D logo with
- * "Made with Proj4D" and "Page x of y" on the right.
+ * "Made with Proj4D" and "Page x of y" on the right. Plans with white-label reports
+ * (branding.white_label) show only the page number on the right.
  */
-export function drawFooters(doc, C, leftParts) {
+export function drawFooters(doc, C, leftParts, branding = {}) {
+  const appBrand = !branding.white_label;
   const L = doc.page.margins.left;
   const range = doc.bufferedPageRange();
   const made = 'Made with Proj4D';
@@ -115,7 +117,7 @@ export function drawFooters(doc, C, leftParts) {
     const ICON = 9;
     const GAP = 4;
     const SEP = 14;
-    const blockW = ICON + GAP + madeW + SEP + pageW;
+    const blockW = appBrand ? ICON + GAP + madeW + SEP + pageW : pageW;
     const bx = L + W - blockW;
 
     // Left: document details (truncated so it never runs into the right-hand block)
@@ -129,11 +131,13 @@ export function drawFooters(doc, C, leftParts) {
     doc.text(left, L, fy, { lineBreak: false });
 
     // Right: [logo] Made with Proj4D  ·  Page x of y
-    drawAppLogo(doc, bx, fy - 1.5, ICON);
-    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#16324f').text(made, bx + ICON + GAP, fy, { lineBreak: false });
-    if (APP_LINK) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, APP_LINK);
-    doc.font('Helvetica').fillColor(C.muted).text('·', bx + ICON + GAP + madeW + SEP / 2 - 1.5, fy, { lineBreak: false });
-    doc.text(page, L + W - pageW, fy, { lineBreak: false });
+    if (appBrand) {
+      drawAppLogo(doc, bx, fy - 1.5, ICON);
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#16324f').text(made, bx + ICON + GAP, fy, { lineBreak: false });
+      if (APP_LINK) doc.link(bx, fy - 2, ICON + GAP + madeW, 11, APP_LINK);
+      doc.font('Helvetica').fillColor(C.muted).text('·', bx + ICON + GAP + madeW + SEP / 2 - 1.5, fy, { lineBreak: false });
+    }
+    doc.font('Helvetica').fontSize(7.5).fillColor(C.muted).text(page, L + W - pageW, fy, { lineBreak: false });
     doc.page.margins.bottom = oldBottom;
   }
 }
@@ -494,6 +498,6 @@ export function renderReportPdf({ project, report, items, photos, reportNo, regi
   });
 
   // ---------- Footer on every page
-  drawFooters(doc, C, [branding.name, project.name, `Daily Site Report ${report.report_date}`]);
+  drawFooters(doc, C, [branding.name, project.name, `Daily Site Report ${report.report_date}`], branding);
   doc.end();
 }

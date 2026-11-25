@@ -4,13 +4,31 @@ import { db } from './db.js';
 export const TRIAL_DAYS = 7;
 const GRACE_DAYS = 3; // keep a paid plan this long after a renewal is due, while Paystack retries the card
 
-/** Plan features. null = unlimited. Prices live in the plan_prices table so they can change without a release. */
-export const PLANS = {
-  free: { key: 'free', name: 'Free', rank: 0, members: 3, projects: 2, ai: false, programmes: false, programmes_per_day: 0, blurb: 'For small teams getting started' },
-  starter: { key: 'starter', name: 'Starter', rank: 1, members: 10, projects: 10, ai: true, programmes: false, programmes_per_day: 0, blurb: 'AI-assisted daily reporting' },
-  professional: { key: 'professional', name: 'Professional', rank: 2, members: 30, projects: null, ai: true, programmes: true, programmes_per_day: 20, blurb: 'Adds the AI work programme generator' },
-  business: { key: 'business', name: 'Business', rank: 3, members: null, projects: null, ai: true, programmes: true, programmes_per_day: 50, blurb: 'For larger contractors, with priority support' },
+/**
+ * Plan limits and features. null = unlimited. Prices live in the plan_prices table so they can change without a release.
+ * AI features: summaries (report summaries), programmes (AI programme generator), programme_pdf (read PDF programmes),
+ * notes (fill reports from site notes), insights (AI project insights).
+ */
+const NO_AI = { summaries: false, programmes: false, programme_pdf: false, notes: false, insights: false, progress_reports: false, white_label: false };
+const STARTER_AI = { ...NO_AI, summaries: true, programmes: true, programme_pdf: true };
+const ALL_AI = { summaries: true, programmes: true, programme_pdf: true, notes: true, insights: true, progress_reports: true, white_label: true }; // white_label: PDFs without Proj4D branding
+export const AI_FEATURE_NAMES = {
+  summaries: 'AI report summaries',
+  programmes: 'The AI work programme generator',
+  programme_pdf: 'Reading PDF programmes with AI',
+  notes: 'Filling reports from site notes with AI',
+  insights: 'AI project insights',
+  progress_reports: 'Weekly, monthly, status and milestone reports',
 };
+export const PLANS = {
+  free: { key: 'free', name: 'Free', rank: 0, members: 3, projects: 2, features: NO_AI, programmes_per_day: 0, blurb: 'For small teams getting started' },
+  starter: { key: 'starter', name: 'Starter', rank: 1, members: 10, projects: 10, features: STARTER_AI, programmes_per_day: 5, blurb: 'AI report summaries and work programmes' },
+  professional: { key: 'professional', name: 'Professional', rank: 2, members: 30, projects: null, features: ALL_AI, programmes_per_day: 20, blurb: 'Client reports, AI from site notes and insights' },
+  business: { key: 'business', name: 'Business', rank: 3, members: null, projects: null, features: ALL_AI, programmes_per_day: 50, blurb: 'For larger contractors, with priority support' },
+};
+/** The cheapest plan that includes an AI feature (for upgrade messages). */
+export const planWith = (feature) => Object.values(PLANS).sort((a, b) => a.rank - b.rank).find((p) => p.features[feature]);
+
 export const PAID = ['starter', 'professional', 'business'];
 export const CURRENCIES = ['NGN', 'USD'];
 export const INTERVALS = ['monthly', 'annually'];
@@ -175,7 +193,7 @@ export function billingSummary(companyId) {
     trial_days_left: b.trial_days_left,
     trial_ends_at: b.trial_ends_at,
     limits: { members: plan.members, projects: plan.projects },
-    features: { ai: plan.ai, programmes: plan.programmes },
+    features: { ...plan.features },
     usage: usage(companyId),
     subscription: b.subscription,
     override: b.override,

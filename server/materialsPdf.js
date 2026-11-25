@@ -178,6 +178,6 @@ export function renderMaterialsPdf({ project, from, to, data, branding = {} }, s
   }
 
   signOff(doc, C, 'Storekeeper', 'Checked by (Site manager)');
-  drawFooters(doc, C, [branding.name, project.name, `Materials register ${single ? from : `${from} to ${to}`}`]);
+  drawFooters(doc, C, [branding.name, project.name, `Materials register ${single ? from : `${from} to ${to}`}`], branding);
   doc.end();
 }

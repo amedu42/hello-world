@@ -48,11 +48,11 @@ const MAX_TOTAL_BYTES = 22 * 1024 * 1024; // keeps the AI request under the API'
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Whether the user's company may use the generator (Professional plan and above, or the trial). */
+/** Whether the user's company may use the generator (Starter plan and above, or the trial). */
 export function hasProgrammeAccess(req) {
   if (process.env.PREMIUM_PROGRAMMES === 'all') return true;
   if (isPlatformAdmin(req.user)) return true;
-  return planOf(req.company.id).programmes;
+  return planOf(req.company.id).features.programmes;
 }
 
 /** Generations per company per day: the plan's allowance, or PROGRAMME_DAILY_LIMIT if set. */
@@ -595,7 +595,7 @@ const docUpload = multer({
 
 const base = '/projects/:id/programme-generator';
 const premium = (req) => {
-  if (!hasProgrammeAccess(req)) throw new HttpError(403, 'The AI programme generator is included in the Professional and Business plans. Upgrade on the Plan & billing page.');
+  if (!hasProgrammeAccess(req)) throw new HttpError(403, 'The AI work programme generator is included in the Starter plan and above. Upgrade on the Plan & billing page.');
 };
 
 programmeGenRouter.get(base, (req, res) => {
@@ -743,7 +743,7 @@ programmeGenRouter.get(`${base}/pdf`, (req, res) => {
       project: p,
       schedule,
       inputs: d.inputs,
-      branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null },
+      branding: { name: c.name, color: c.primary_color, logoPath: c.logo_filename ? path.join(UPLOAD_DIR, c.logo_filename) : null, white_label: planOf(c.id).features.white_label },
     },
     res
   );

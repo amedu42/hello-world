@@ -53,13 +53,14 @@ export default function ProjectDashboard() {
               <button onClick={() => setModal('edit')}>Edit project details</button>
               <button onClick={() => setModal('programme')}>Upload work programme</button>
               <button onClick={() => navigate(`/projects/${p.id}/programme-generator`)}>
-                Generate programme with AI{!me.company.billing?.features.programmes && <span className="premium-tag">Pro</span>}
+                Generate programme with AI{!me.company.billing?.features.programmes && <span className="premium-tag">Starter</span>}
               </button>
               {me.user.role === 'admin' && <button className="danger" onClick={deleteProject}>Delete project</button>}
             </div>
           </details>
           <Link className="btn ghost" to={`/projects/${p.id}/attendance`}>Attendance</Link>
           <Link className="btn ghost" to={`/projects/${p.id}/materials`}>Materials</Link>
+          <Link className="btn ghost" to={`/projects/${p.id}/progress-reports`}>Progress reports</Link>
           {todaysReport ? (
             <Link className="btn primary" to={`/reports/${todaysReport.id}/edit`}>Edit today's report</Link>
           ) : (
@@ -142,7 +143,7 @@ function Stat({ label, value, sub }) {
 }
 
 function Insights({ projectId, hasReports }) {
-  const { ai } = useStatus();
+  const ai = useStatus().features?.insights;
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);

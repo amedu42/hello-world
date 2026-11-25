@@ -7,9 +7,9 @@ import { ErrorNote, Spinner } from '../components/ui.jsx';
 
 const FEATURES = {
   free: ['Daily site reports and PDFs', 'Attendance and materials registers', 'Programme upload (Excel, CSV, MS Project)', 'Progress tracking and notifications'],
-  starter: ['Everything in Free', 'AI report summaries', 'Fill reports from site notes with AI', 'AI project insights', 'Read PDF programmes with AI'],
-  professional: ['Everything in Starter', 'AI work programme generator (PDF and MS Project)'],
-  business: ['Everything in Professional', 'Higher AI programme limits', 'Priority support'],
+  starter: ['Everything in Free', 'AI report summaries', 'AI work programme generator (PDF and MS Project)', 'Read PDF programmes with AI'],
+  professional: ['Everything in Starter', 'Fill reports from site notes with AI', 'AI project insights', 'Weekly, monthly, status and milestone reports with AI', 'Reports without Proj4D branding (your logo only)'],
+  business: ['Everything in Professional', 'Priority support'],
 };
 const limitText = (n, word) => (n == null ? `Unlimited ${word}` : `Up to ${n} ${word}`);
 
@@ -166,7 +166,7 @@ export default function BillingPage() {
           {usageRow('Projects', b.usage.projects, b.limits.projects)}
           <div className="stat">
             <div className="stat-label">AI features</div>
-            <div className="stat-value small-value">{b.features.programmes ? 'All' : b.features.ai ? 'Reports' : 'None'}</div>
+            <div className="stat-value small-value">{Object.values(b.features).every(Boolean) ? 'All' : Object.values(b.features).some(Boolean) ? 'Some' : 'None'}</div>
           </div>
         </div>
       </section>
@@ -217,6 +217,7 @@ export default function BillingPage() {
               <ul className="plan-features">
                 <li><b>{limitText(p.members, 'members')}</b></li>
                 <li><b>{limitText(p.projects, 'projects')}</b></li>
+                {p.programmes_per_day > 0 && <li><b>Up to {p.programmes_per_day} AI programmes a day</b></li>}
                 {FEATURES[p.key].map((f) => (
                   <li key={f}>{f}</li>
                 ))}

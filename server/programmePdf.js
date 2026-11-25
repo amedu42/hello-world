@@ -124,7 +124,7 @@ export function renderProgrammePdf({ project, schedule, inputs, branding = {} },
     drawLegend();
   });
 
-  drawFooters(doc, C, [branding.name, P.name, 'Work programme']);
+  drawFooters(doc, C, [branding.name, P.name, 'Work programme'], branding);
   doc.end();
 
   // ---------------------------------------------------------------- drawing helpers
