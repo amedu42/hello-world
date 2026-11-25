@@ -74,6 +74,11 @@ export default function App() {
     return () => window.removeEventListener('sp:unauthorized', onUnauthorized);
   }, [reload]);
 
+  // Tell the installed app's launch screen (index.html) that the first screen is ready.
+  useEffect(() => {
+    if (me !== undefined) window.dispatchEvent(new Event('p4d:ready'));
+  }, [me]);
+
   if (me === undefined) return <div className="container"><Spinner label="Loading…" /></div>;
 
   if (!me) {
