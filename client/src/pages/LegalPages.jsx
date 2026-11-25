@@ -198,7 +198,7 @@ export function PrivacyPage() {
             <li><b>Browser push services</b> (Google, Apple or Mozilla, depending on your device): deliver the notifications you turn on. They receive the notification in encrypted form.</li>
             <li>
               <b>Anthropic</b> (AI features{d.ai_enabled ? '' : ', when enabled'}): when you use AI features, the relevant content (such as report details, typed site
-              notes, a programme file, or drawings and a BOQ for programme generation) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
+              notes, a programme file, drawings and a BOQ for programme generation, or the figures, notes and photos for a progress report) is sent to Anthropic's Claude API to produce the result. Anthropic processes it under its commercial terms; see
               anthropic.com/legal for how it handles API data.
             </li>
           </ul>

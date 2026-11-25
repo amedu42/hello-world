@@ -9,15 +9,16 @@ const GRACE_DAYS = 3; // keep a paid plan this long after a renewal is due, whil
  * AI features: summaries (report summaries), programmes (AI programme generator), programme_pdf (read PDF programmes),
  * notes (fill reports from site notes), insights (AI project insights).
  */
-const NO_AI = { summaries: false, programmes: false, programme_pdf: false, notes: false, insights: false };
+const NO_AI = { summaries: false, programmes: false, programme_pdf: false, notes: false, insights: false, progress_reports: false };
 const STARTER_AI = { ...NO_AI, summaries: true, programmes: true, programme_pdf: true };
-const ALL_AI = { summaries: true, programmes: true, programme_pdf: true, notes: true, insights: true };
+const ALL_AI = { summaries: true, programmes: true, programme_pdf: true, notes: true, insights: true, progress_reports: true };
 export const AI_FEATURE_NAMES = {
   summaries: 'AI report summaries',
   programmes: 'The AI work programme generator',
   programme_pdf: 'Reading PDF programmes with AI',
   notes: 'Filling reports from site notes with AI',
   insights: 'AI project insights',
+  progress_reports: 'Weekly, monthly, status and milestone reports',
 };
 export const PLANS = {
   free: { key: 'free', name: 'Free', rank: 0, members: 3, projects: 2, features: NO_AI, programmes_per_day: 0, blurb: 'For small teams getting started' },

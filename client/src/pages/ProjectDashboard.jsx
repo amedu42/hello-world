@@ -60,6 +60,7 @@ export default function ProjectDashboard() {
           </details>
           <Link className="btn ghost" to={`/projects/${p.id}/attendance`}>Attendance</Link>
           <Link className="btn ghost" to={`/projects/${p.id}/materials`}>Materials</Link>
+          <Link className="btn ghost" to={`/projects/${p.id}/progress-reports`}>Progress reports</Link>
           {todaysReport ? (
             <Link className="btn primary" to={`/reports/${todaysReport.id}/edit`}>Edit today's report</Link>
           ) : (

@@ -14,6 +14,7 @@ import { demoAdminRouter, publicRouter } from './demo.js';
 import { renderLanding } from './landing.js';
 import { generatorFiles, programmeGenRouter } from './programmeGen.js';
 import { billingRouter, paystackEnabled } from './billing.js';
+import { progressReportFiles, progressReportsRouter } from './progressReports.js';
 import { AI_FEATURE_NAMES, planOf, planWith } from './plans.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
@@ -211,7 +212,7 @@ app.delete('/api/projects/:id', (req, res) => {
     .prepare('SELECT ph.filename FROM photos ph JOIN reports r ON r.id = ph.report_id WHERE r.project_id = ?')
     .all(req.params.id)
     .map((f) => f.filename);
-  files.push(...generatorFiles(req.params.id));
+  files.push(...generatorFiles(req.params.id), ...progressReportFiles(req.params.id));
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
   for (const f of files) fs.rm(path.join(UPLOAD_DIR, f), { force: true }, () => {});
   res.json({ ok: true });
@@ -631,6 +632,7 @@ app.post(
 // ------------------------------------------------------------------ Attendance register
 
 app.use('/api', programmeGenRouter);
+app.use('/api', progressReportsRouter);
 app.use('/api', attendanceRouter);
 app.use('/api', materialsRouter);
 app.use('/api/push', pushRouter);

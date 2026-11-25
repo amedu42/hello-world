@@ -8,7 +8,7 @@ import { ErrorNote, Spinner } from '../components/ui.jsx';
 const FEATURES = {
   free: ['Daily site reports and PDFs', 'Attendance and materials registers', 'Programme upload (Excel, CSV, MS Project)', 'Progress tracking and notifications'],
   starter: ['Everything in Free', 'AI report summaries', 'AI work programme generator (PDF and MS Project)', 'Read PDF programmes with AI'],
-  professional: ['Everything in Starter', 'Fill reports from site notes with AI', 'AI project insights'],
+  professional: ['Everything in Starter', 'Fill reports from site notes with AI', 'AI project insights', 'Weekly, monthly, status and milestone reports with AI'],
   business: ['Everything in Professional', 'Priority support'],
 };
 const limitText = (n, word) => (n == null ? `Unlimited ${word}` : `Up to ${n} ${word}`);
