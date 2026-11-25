@@ -705,7 +705,10 @@ if (fs.existsSync(dist)) {
       },
     })
   );
-  app.get(/^\/(?!api|uploads).*/, (_req, res) => {
+  app.get(/^\/(?!api|uploads).*/, (req, res) => {
+    // A missing file (e.g. an old /assets/… name during a deploy) must be a real 404, never the app page:
+    // otherwise the browser and the offline cache would treat HTML as the stylesheet or script.
+    if (/\.[a-z0-9]{2,5}$/i.test(req.path)) return res.status(404).type('text/plain').send('Not found');
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(dist, 'index.html'));
   });
