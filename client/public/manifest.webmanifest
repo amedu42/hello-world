@@ -6,7 +6,7 @@
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
-  "orientation": "natural",
+  "orientation": "any",
   "background_color": "#16324f",
   "theme_color": "#16324f",
   "categories": ["business", "productivity"],
