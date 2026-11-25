@@ -21,7 +21,7 @@ export const AI_FEATURE_NAMES = {
 };
 export const PLANS = {
   free: { key: 'free', name: 'Free', rank: 0, members: 3, projects: 2, features: NO_AI, programmes_per_day: 0, blurb: 'For small teams getting started' },
-  starter: { key: 'starter', name: 'Starter', rank: 1, members: 10, projects: 10, features: STARTER_AI, programmes_per_day: 10, blurb: 'AI report summaries and work programmes' },
+  starter: { key: 'starter', name: 'Starter', rank: 1, members: 10, projects: 10, features: STARTER_AI, programmes_per_day: 5, blurb: 'AI report summaries and work programmes' },
   professional: { key: 'professional', name: 'Professional', rank: 2, members: 30, projects: null, features: ALL_AI, programmes_per_day: 20, blurb: 'Adds AI from site notes and project insights' },
   business: { key: 'business', name: 'Business', rank: 3, members: null, projects: null, features: ALL_AI, programmes_per_day: 50, blurb: 'For larger contractors, with priority support' },
 };
