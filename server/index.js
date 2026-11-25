@@ -11,11 +11,11 @@ import { attendanceRouter, daySummary } from './attendance.js';
 import { materialsDay, materialsRouter } from './materials.js';
 import { notifyReportSaved, pushRouter, startReminderScheduler } from './notifications.js';
 import { demoAdminRouter, publicRouter } from './demo.js';
-import { renderLanding } from './landing.js';
+import { renderLanding, renderPricing } from './landing.js';
 import { generatorFiles, programmeGenRouter } from './programmeGen.js';
 import { billingRouter, paystackEnabled } from './billing.js';
 import { progressReportFiles, progressReportsRouter } from './progressReports.js';
-import { AI_FEATURE_NAMES, planOf, planWith } from './plans.js';
+import { AI_FEATURE_NAMES, PLANS, TRIAL_DAYS, planOf, planWith, priceList } from './plans.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -665,12 +665,25 @@ const sendLanding = (_req, res) => {
   res.set('Cache-Control', 'no-cache').type('html').send(landing());
 };
 app.get('/home', sendLanding);
+// Plans and pricing: rendered per request so price changes in Platform admin show straight away.
+app.get('/pricing', (_req, res) => {
+  res.set('Cache-Control', 'no-cache').type('html').send(
+    renderPricing({
+      appOrigin: (process.env.APP_ORIGIN || '').replace(/\/+$/, ''),
+      businessName: process.env.LEGAL_BUSINESS_NAME || 'Proj4D',
+      canonical: siteUrl,
+      plans: Object.values(PLANS).sort((a, b) => a.rank - b.rank),
+      prices: priceList(),
+      trialDays: TRIAL_DAYS,
+    })
+  );
+});
 app.get('/robots.txt', (_req, res) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /$\nAllow: /home\nAllow: /terms\nAllow: /privacy\nDisallow: /api/\nDisallow: /uploads/\nDisallow: /projects/\nDisallow: /reports/\n${siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /$\nAllow: /home\nAllow: /pricing\nAllow: /terms\nAllow: /privacy\nDisallow: /api/\nDisallow: /uploads/\nDisallow: /projects/\nDisallow: /reports/\n${siteUrl ? `Sitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
 });
 app.get('/sitemap.xml', (_req, res) => {
   const base = siteUrl || '';
-  const urls = ['/', '/signup', '/terms', '/privacy'].map((u) => `<url><loc>${base}${u}</loc></url>`).join('');
+  const urls = ['/', '/pricing', '/signup', '/terms', '/privacy'].map((u) => `<url><loc>${base}${u}</loc></url>`).join('');
   res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 });
 

@@ -60,7 +60,7 @@ const STEPS = [
 ];
 
 const FAQ = [
-  ['How much does Proj4D cost?', 'Every new company gets a 7-day free trial of every feature, with no card needed. After that you can stay on the Free plan for as long as you like (up to 3 team members and 2 projects, without the AI features), or choose a paid plan inside the app for AI and larger teams. Book a demo and we’ll help you pick the right one.'],
+  ['How much does Proj4D cost?', 'Every new company gets a 7-day free trial of every feature, with no card needed. After that you can stay on the Free plan for as long as you like (up to 3 team members and 2 projects, without the AI features), or choose a paid plan for AI and larger teams. See the plans and pricing page for details, or book a demo and we’ll help you pick the right one.'],
   ['Can AI really create our work programme?', 'Yes. Upload the working drawings (PDF or photos), the bill of quantities and any other documents, set the start and target completion dates and your working days, and AI drafts the phases, tasks, durations and links. Proj4D calculates the dates and critical path. You review and edit it, then download a Gantt PDF or MS Project XML, or use it as the project’s task list.'],
   ['Which reports can Proj4D produce?', 'Daily progress reports, weekly and monthly progress reports, project status (work-in-progress) reports, milestone tracking reports, attendance and materials registers, and AI-generated work programmes. All download as PDFs in your company branding.'],
   ['Can we edit what the AI writes?', 'Always. AI drafts are just that: you can change any text, choose which tables to include, adjust milestones and photos, and only then publish. The figures themselves come from your own programme and site records, not from the AI.'],
@@ -71,47 +71,10 @@ const FAQ = [
   ['Does it work without internet?', 'Proj4D needs a connection to save. If the signal drops it tells you, and an unfinished daily report is kept on the phone until you submit it.'],
 ];
 
-export function renderLanding({ appOrigin = '', whatsapp = '', businessName = 'Proj4D', contactEmail = '', canonical = '' } = {}) {
-  const app = (p) => `${appOrigin}${p}`;
-  const wa = String(whatsapp).replace(/[^\d]/g, '');
-  const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent("Hi, I'd like to know more about Proj4D.")}` : '';
-  const year = new Date().getFullYear();
-  const title = 'Proj4D – AI construction project management: programmes, site reports and progress';
-  const desc =
-    'Proj4D drafts your work programme from drawings and a BOQ with AI, records daily site progress, attendance and materials from any phone, and produces weekly, monthly, status and milestone reports your clients trust. Free 7-day trial.';
-  const og = canonical ? `${canonical}/home/og-image.png` : '/home/og-image.png';
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'Proj4D',
-    applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web, Android, iOS, Windows, macOS',
-    description: desc,
-    ...(canonical ? { url: canonical } : {}),
-  };
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(title)}</title>
-<meta name="description" content="${esc(desc)}" />
-${canonical ? `<link rel="canonical" href="${esc(canonical)}/" />` : ''}
-<meta name="theme-color" content="#16324f" />
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-<link rel="manifest" href="/manifest.webmanifest" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="${esc(title)}" />
-<meta property="og:description" content="${esc(desc)}" />
-<meta property="og:image" content="${esc(og)}" />
-${canonical ? `<meta property="og:url" content="${esc(canonical)}/" />` : ''}
-<meta name="twitter:card" content="summary_large_image" />
-<link rel="preload" as="image" href="/home/dashboard.webp" fetchpriority="high" />
-<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
-<style>
-:root { --navy: #16324f; --navy-2: #224b74; --navy-3: #0f2338; --amber: #f2a900; --amber-2: #ffb81a; --ink: #1c2430; --ink-2: #44505f; --muted: #687384; --line: #e1e5eb; --bg: #f4f6f9; --white: #fff; --good: #1f8a4c; --red: #d64545; }
+// ------------------------------------------------------------------ shared by the homepage and the pricing page
+
+export const CSS = `:root { --navy: #16324f; --navy-2: #224b74; --navy-3: #0f2338; --amber: #f2a900; --amber-2: #ffb81a; --ink: #1c2430; --ink-2: #44505f; --muted: #687384; --line: #e1e5eb; --bg: #f4f6f9; --white: #fff; --good: #1f8a4c; --red: #d64545; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 body { margin: 0; color: var(--ink); background: var(--white); font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
@@ -337,14 +300,16 @@ footer a:hover { color: #fff; }
   .report-media .card-shot { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn:hover, .stage:hover .go { transform: none; } }
-</style>
-</head>
-<body>
-<header class="nav">
+`;
+
+/** Site header. On the homepage the section links are in-page anchors; elsewhere they go to /home. */
+const navHtml = (app, onHome = true) => {
+  const h = onHome ? '' : '/home';
+  return `<header class="nav">
   <div class="wrap">
     <a class="brand" href="/home"><img src="/icons/icon-192.png" alt="" width="32" height="32" />Proj4D</a>
     <nav class="nav-links" aria-label="Main">
-      <a href="#plan">AI programmes</a><a href="#track">Site reporting</a><a href="#report">Client reports</a><a href="#features">Features</a><a href="#faq">FAQ</a>
+      <a href="${h}#plan">AI programmes</a><a href="${h}#track">Site reporting</a><a href="${h}#report">Client reports</a><a href="${h}#features">Features</a><a href="/pricing">Pricing</a><a href="${h}#faq">FAQ</a>
     </nav>
     <div class="nav-cta">
       <a class="nav-login" href="${app('/login')}">Log in</a>
@@ -353,10 +318,84 @@ footer a:hover { color: #fff; }
     <button class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </div>
   <div class="mobile-menu" id="mobile-menu">
-    <a href="#plan">AI programmes</a><a href="#track">Site reporting</a><a href="#report">Client reports</a><a href="#features">Features</a><a href="#faq">FAQ</a><a href="#demo">Book a demo</a><a href="${app('/login')}">Log in</a>
+    <a href="${h}#plan">AI programmes</a><a href="${h}#track">Site reporting</a><a href="${h}#report">Client reports</a><a href="${h}#features">Features</a><a href="/pricing">Pricing</a><a href="${h}#faq">FAQ</a><a href="${h}#demo">Book a demo</a><a href="${app('/login')}">Log in</a>
     <a class="btn btn-primary" href="${app('/signup')}">Start free trial</a>
   </div>
-</header>
+</header>`;
+};
+
+const footerHtml = (app, businessName) => `<footer>
+  <div class="wrap">
+    <div><a class="brand" href="/home" style="font-size:17px;margin-bottom:6px"><img src="/icons/icon-192.png" alt="" width="26" height="26" />Proj4D</a>© ${new Date().getFullYear()} ${esc(businessName)}</div>
+    <nav aria-label="Footer"><a href="${app('/login')}">Log in</a><a href="${app('/signup')}">Start free trial</a><a href="/pricing">Pricing</a><a href="/home#demo">Book a demo</a><a href="${app('/terms')}">Terms</a><a href="${app('/privacy')}">Privacy</a></nav>
+  </div>
+</footer>`;
+
+const MENU_JS = `var btn = document.querySelector('.menu-btn'), menu = document.getElementById('mobile-menu');
+  btn.addEventListener('click', function () { var o = menu.classList.toggle('open'); btn.setAttribute('aria-expanded', o); });
+  menu.addEventListener('click', function (e) { if (e.target.tagName === 'A') { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); } });`;
+
+const headTags = ({ title, desc, canonical, path = '/', og }) => `<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(desc)}" />
+${canonical ? `<link rel="canonical" href="${esc(canonical)}${path}" />` : ''}
+<meta name="theme-color" content="#16324f" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${esc(title)}" />
+<meta property="og:description" content="${esc(desc)}" />
+<meta property="og:image" content="${esc(og)}" />
+${canonical ? `<meta property="og:url" content="${esc(canonical)}${path}" />` : ''}
+<meta name="twitter:card" content="summary_large_image" />`;
+
+export function renderLanding({ appOrigin = '', whatsapp = '', businessName = 'Proj4D', contactEmail = '', canonical = '' } = {}) {
+  const app = (p) => `${appOrigin}${p}`;
+  const wa = String(whatsapp).replace(/[^\d]/g, '');
+  const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent("Hi, I'd like to know more about Proj4D.")}` : '';
+  const year = new Date().getFullYear();
+  const title = 'Proj4D – AI construction project management: programmes, site reports and progress';
+  const desc =
+    'Proj4D drafts your work programme from drawings and a BOQ with AI, records daily site progress, attendance and materials from any phone, and produces weekly, monthly, status and milestone reports your clients trust. Free 7-day trial.';
+  const og = canonical ? `${canonical}/home/og-image.png` : '/home/og-image.png';
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Proj4D',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web, Android, iOS, Windows, macOS',
+    description: desc,
+    ...(canonical ? { url: canonical } : {}),
+  };
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(desc)}" />
+${canonical ? `<link rel="canonical" href="${esc(canonical)}/" />` : ''}
+<meta name="theme-color" content="#16324f" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${esc(title)}" />
+<meta property="og:description" content="${esc(desc)}" />
+<meta property="og:image" content="${esc(og)}" />
+${canonical ? `<meta property="og:url" content="${esc(canonical)}/" />` : ''}
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preload" as="image" href="/home/dashboard.webp" fetchpriority="high" />
+<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>
+<style>
+${CSS}
+</style>
+</head>
+<body>
+${navHtml(app)}
 
 <main>
 <section class="hero">
@@ -519,7 +558,7 @@ footer a:hover { color: #fff; }
         <p>Create your company account and use every feature, AI included, with your own projects and team. No card needed.</p>
         <div class="start-cta">
           <a class="btn btn-primary" href="${app('/signup')}">Start your free trial</a>
-          <a class="btn btn-navy" href="#demo">Book a demo</a>
+          <a class="btn btn-navy" href="/pricing">See plans and pricing</a>
         </div>
       </div>
       <div class="offers">
@@ -585,18 +624,11 @@ footer a:hover { color: #fff; }
 </section>
 </main>
 
-<footer>
-  <div class="wrap">
-    <div><a class="brand" href="/home" style="font-size:17px;margin-bottom:6px"><img src="/icons/icon-192.png" alt="" width="26" height="26" />Proj4D</a>© ${year} ${esc(businessName)}</div>
-    <nav aria-label="Footer"><a href="${app('/login')}">Log in</a><a href="${app('/signup')}">Start free trial</a><a href="#demo">Book a demo</a><a href="${app('/terms')}">Terms</a><a href="${app('/privacy')}">Privacy</a></nav>
-  </div>
-</footer>
+${footerHtml(app, businessName)}
 
 <script>
 (function () {
-  var btn = document.querySelector('.menu-btn'), menu = document.getElementById('mobile-menu');
-  btn.addEventListener('click', function () { var o = menu.classList.toggle('open'); btn.setAttribute('aria-expanded', o); });
-  menu.addEventListener('click', function (e) { if (e.target.tagName === 'A') { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); } });
+  ${MENU_JS}
   var form = document.getElementById('demo-form'), msg = document.getElementById('form-msg');
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -610,6 +642,269 @@ footer a:hover { color: #fff; }
       .catch(function (err) { msg.textContent = err.message; msg.className = 'form-msg err'; })
       .finally(function () { b.disabled = false; b.textContent = 'Request a demo'; });
   });
+})();
+</script>
+</body>
+</html>`;
+}
+
+// ------------------------------------------------------------------ Plans & pricing page
+
+const money = (amount, cur) =>
+  (cur === 'NGN' ? '₦' : '$') + Number(amount).toLocaleString('en-US', Number.isInteger(amount) || cur === 'NGN' ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const perMonthOfYear = (amount, cur) => money(Math.round((amount / 12) * (cur === 'NGN' ? 1 : 100)) / (cur === 'NGN' ? 1 : 100), cur);
+
+const PLAN_CARD_FEATURES = {
+  free: ['Daily site reports and PDFs', 'Attendance and materials registers', 'Programme upload (Excel, CSV, MS Project)', 'Progress tracking and notifications'],
+  starter: ['Everything in Free', 'AI report summaries', 'AI work programme generator (PDF and MS Project)', 'Read PDF programmes with AI'],
+  professional: ['Everything in Starter', 'Fill reports from site notes with AI', 'AI project insights', 'Weekly, monthly, status and milestone reports with AI', 'Reports without Proj4D branding (your logo only)'],
+  business: ['Everything in Professional', 'Priority support'],
+};
+
+const PRICING_FAQ = [
+  ['How does the free trial work?', 'Every new company gets 7 days of every feature, AI included, with no card needed. When the trial ends you move to the Free plan automatically unless you choose a paid plan. Nothing is deleted.'],
+  ['How do I pay?', 'Paid plans are billed through Paystack by card, bank transfer or USSD. Nigerian customers pay in naira; customers elsewhere can pay in US dollars.'],
+  ['Monthly or yearly?', 'Either. Yearly billing costs the same as 10 months, so you get 2 months free.'],
+  ['Can I change or cancel my plan?', 'Yes, any time from the Plan & billing page in the app. If you cancel, you keep your plan until the end of the period you’ve paid for, then move to the Free plan. A new plan starts straight away and is charged in full; unused time on the previous plan isn’t refunded.'],
+  ['What happens if we go over a plan’s limits?', 'Nothing is deleted. You can’t add more members or projects than your plan allows, and if a team is larger than the plan (for example after the trial), the newest members are paused until you upgrade.'],
+  ['What counts as a team member?', 'Anyone in your company who can log in to Proj4D: admins and members. Clients don’t need an account to receive your PDF reports.'],
+  ['What is the daily AI programme limit?', 'The number of work programmes your company can generate with AI each day: 5 on Starter, 20 on Professional and 50 on Business. Editing and downloading a programme doesn’t count.'],
+  ['Do you offer custom plans?', 'For large contractors or several companies under one group, book a demo and we’ll talk about the right setup.'],
+];
+
+/** Public plans and pricing page, rendered on each request so it always shows the current prices. */
+export function renderPricing({ appOrigin = '', businessName = 'Proj4D', canonical = '', plans, prices, trialDays = 7 } = {}) {
+  const app = (p) => `${appOrigin}${p}`;
+  const title = 'Plans and pricing – Proj4D';
+  const desc = `Proj4D plans for construction teams: a Free plan, and Starter, Professional and Business plans with AI work programmes and client reports. Pay in naira or US dollars, monthly or yearly. ${trialDays}-day free trial, no card needed.`;
+  const og = canonical ? `${canonical}/home/og-image.png` : '/home/og-image.png';
+  const limit = (n, word) => (n == null ? `Unlimited ${word}` : `Up to ${n} ${word}`);
+  const priceAttrs = (key) =>
+    ['NGN', 'USD']
+      .flatMap((c) =>
+        ['monthly', 'annually'].map((i) => {
+          const a = prices[key]?.[c]?.[i];
+          return a == null ? '' : `data-${c.toLowerCase()}-${i}="${esc(money(a, c))}" data-${c.toLowerCase()}-${i}-pm="${esc(perMonthOfYear(a, c))}"`;
+        })
+      )
+      .join(' ');
+
+  const cards = plans
+    .map((p) => {
+      const free = p.key === 'free';
+      const featured = p.key === 'professional';
+      return `<article class="tier ${featured ? 'featured' : ''}">
+        ${featured ? '<div class="flag">Most popular</div>' : ''}
+        <h2>${esc(p.name)}</h2>
+        <p class="blurb">${esc(p.blurb)}</p>
+        <div class="price" ${free ? '' : priceAttrs(p.key)}>
+          <span class="amount">${free ? '₦0' : esc(money(prices[p.key]?.NGN?.monthly ?? 0, 'NGN'))}</span><span class="per">${free ? ' forever' : '/month'}</span>
+        </div>
+        <div class="price-note">${free ? 'No card, no time limit' : '<span class="pm"></span>'}</div>
+        <a class="btn ${featured ? 'btn-primary' : 'btn-outline'}" href="${app('/signup')}">${free ? 'Start free' : `Start ${trialDays}-day free trial`}</a>
+        <ul class="ticks">
+          <li>${icon('check')}<span><b>${esc(limit(p.members, 'members'))}</b></span></li>
+          <li>${icon('check')}<span><b>${esc(limit(p.projects, 'projects'))}</b></span></li>
+          ${p.programmes_per_day ? `<li>${icon('check')}<span><b>Up to ${p.programmes_per_day} AI programmes a day</b></span></li>` : ''}
+          ${(PLAN_CARD_FEATURES[p.key] || []).map((f) => `<li>${icon('check')}<span>${esc(f)}</span></li>`).join('')}
+          ${free ? `<li class="no"><span>No AI features</span></li>` : ''}
+        </ul>
+      </article>`;
+    })
+    .join('\n');
+
+  // Comparison table
+  const yes = `<span class="yes" aria-label="Included">${icon('check')}</span>`;
+  const no = '<span class="no-mark" aria-label="Not included">–</span>';
+  const has = (p, f) => (p.features[f] ? yes : no);
+  const rows = [
+    ['Team', [
+      ['Team members', (p) => (p.members == null ? 'Unlimited' : p.members)],
+      ['Projects', (p) => (p.projects == null ? 'Unlimited' : p.projects)],
+      ['Company accounts with admins and members', () => yes],
+    ]],
+    ['Site reporting and tracking', [
+      ['Daily progress reports with photos', () => yes],
+      ['Attendance register', () => yes],
+      ['Materials register and stock', () => yes],
+      ['Programme upload (Excel, CSV, MS Project XML)', () => yes],
+      ['Live progress vs plan and dashboard', () => yes],
+      ['Reminders and push notifications', () => yes],
+      ['Install as an app on phone and computer', () => yes],
+    ]],
+    ['AI', [
+      ['AI report summaries', (p) => has(p, 'summaries')],
+      ['AI work programme generator', (p) => (p.features.programmes ? `${p.programmes_per_day} a day` : no)],
+      ['Read PDF programmes with AI', (p) => has(p, 'programme_pdf')],
+      ['Fill reports from site notes with AI', (p) => has(p, 'notes')],
+      ['AI project insights', (p) => has(p, 'insights')],
+    ]],
+    ['Client reports and branding', [
+      ['PDF reports with your logo and colours', () => yes],
+      ['Weekly and monthly progress reports', (p) => has(p, 'progress_reports')],
+      ['Project status (WIP) reports', (p) => has(p, 'progress_reports')],
+      ['Milestone tracking reports', (p) => has(p, 'progress_reports')],
+      ['No Proj4D branding on PDFs', (p) => has(p, 'white_label')],
+    ]],
+    ['Support', [
+      ['Email and WhatsApp support', () => yes],
+      ['Priority support', (p) => (p.key === 'business' ? yes : no)],
+    ]],
+  ];
+  const table = `<table class="compare">
+    <thead><tr><th scope="col"><span class="sr">Feature</span></th>${plans.map((p) => `<th scope="col">${esc(p.name)}</th>`).join('')}</tr></thead>
+    ${rows
+      .map(
+        ([group, items]) =>
+          `<tbody><tr class="group"><th colspan="${plans.length + 1}" scope="colgroup">${esc(group)}</th></tr>${items
+            .map(([label, f]) => `<tr><th scope="row">${esc(label)}</th>${plans.map((p) => `<td>${f(p)}</td>`).join('')}</tr>`)
+            .join('')}</tbody>`
+      )
+      .join('')}
+  </table>`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+${headTags({ title, desc, canonical, path: '/pricing', og })}
+<style>
+${CSS}
+.p-hero { background: radial-gradient(900px 420px at 85% -10%, #2a5a8a 0, transparent 62%), var(--navy); color: #fff; padding: 64px 0 120px; text-align: center; }
+.p-hero h1 { margin: 10px auto 14px; max-width: 16em; }
+.p-hero .lead { margin: 0 auto 26px; }
+.toggles { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.seg { display: inline-flex; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); }
+.seg button { font: inherit; font-weight: 700; font-size: 15px; color: #d5deea; background: none; border: 0; padding: 9px 16px; border-radius: 9px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #fff; color: var(--navy); }
+.seg .save { font-size: 12px; color: var(--amber); margin-left: 4px; }
+.seg button[aria-pressed="true"] .save { color: var(--good); }
+.plans { margin-top: -84px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; position: relative; z-index: 2; align-items: stretch; }
+.tier { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 26px 22px; display: flex; flex-direction: column; box-shadow: 0 24px 48px -30px rgba(8,20,35,.4); }
+.tier.featured { border: 2px solid var(--amber); box-shadow: 0 30px 60px -28px rgba(242,169,0,.45); }
+.tier .flag { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--amber); color: #1c1600; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 12px; border-radius: 99px; white-space: nowrap; }
+.tier h2 { font-size: 22px; margin: 0; }
+.tier .blurb { color: var(--muted); font-size: 14px; margin: 4px 0 16px; min-height: 2.8em; }
+.tier .price { display: flex; align-items: baseline; flex-wrap: wrap; }
+.tier .amount { font-size: 36px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tier .per { color: var(--muted); font-weight: 600; margin-left: 3px; }
+.tier .price-note { min-height: 22px; font-size: 13px; color: var(--muted); margin: 2px 0 16px; }
+.tier .btn { width: 100%; }
+.btn-outline { background: #fff; color: var(--navy); border-color: #cfd5de; }
+.btn-outline:hover { border-color: var(--navy); }
+.tier .ticks { margin-top: 20px; font-size: 14.5px; }
+.tier .ticks li { margin-bottom: 9px; }
+.tier .ticks .no { color: var(--muted); padding-left: 30px; }
+.trial-line { text-align: center; margin: 26px 0 0; color: var(--ink-2); }
+.trial-line b { color: var(--ink); }
+.pay-logos { display: flex; gap: 10px 22px; justify-content: center; flex-wrap: wrap; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.pay-logos span { display: inline-flex; align-items: center; gap: 6px; }
+.pay-logos .ico { width: 18px; height: 18px; color: var(--good); }
+.compare-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+table.compare { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 15px; }
+.compare th, .compare td { padding: 12px 16px; border-bottom: 1px solid var(--line); text-align: center; }
+.compare thead th { position: sticky; top: 0; background: #fff; font-size: 16px; padding-top: 18px; padding-bottom: 14px; }
+.compare tbody th[scope=row] { text-align: left; font-weight: 500; color: var(--ink); }
+.compare tr.group th { text-align: left; background: var(--bg); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--navy-2); padding: 10px 16px; }
+.compare td { font-weight: 600; color: var(--ink); }
+.compare .yes .ico { width: 20px; height: 20px; color: var(--good); stroke-width: 2.6; vertical-align: middle; }
+.compare .no-mark { color: #b5bdc8; }
+.compare tbody tr:last-child td, .compare tbody tr:last-child th { border-bottom-color: var(--line); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cta-band { background: var(--navy); color: #fff; text-align: center; }
+.cta-band p { color: #c9d4e2; font-size: 18px; margin: 0 auto 26px; max-width: 40em; }
+.cta-band .cta-row { justify-content: center; }
+@media (max-width: 1080px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 16px; } }
+@media (max-width: 760px) {
+  .p-hero { padding: 40px 0 100px; }
+  .plans { grid-template-columns: 1fr; gap: 24px; }
+  .seg { width: 100%; }
+  .seg button { flex: 1; padding: 9px 8px; }
+  .tier .blurb { min-height: 0; }
+}
+</style>
+</head>
+<body>
+${navHtml(app, false)}
+<main>
+<section class="p-hero">
+  <div class="wrap">
+    <span class="pill">${icon('check')} ${trialDays}-day free trial on every plan · no card needed</span>
+    <h1>Simple plans that grow with your projects</h1>
+    <p class="lead">Start free, then add AI programmes, client reports and bigger teams when you need them. Pay in naira or US dollars, monthly or yearly.</p>
+    <div class="toggles">
+      <div class="seg" role="group" aria-label="Billing period">
+        <button type="button" data-interval="monthly" aria-pressed="true">Monthly</button>
+        <button type="button" data-interval="annually" aria-pressed="false">Yearly <span class="save">2 months free</span></button>
+      </div>
+      <div class="seg" role="group" aria-label="Currency">
+        <button type="button" data-currency="ngn" aria-pressed="true">₦ Naira</button>
+        <button type="button" data-currency="usd" aria-pressed="false">$ US dollar</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="plans">
+      ${cards}
+    </div>
+    <p class="trial-line"><b>Every new company starts with ${trialDays} days of every feature.</b> After the trial, keep going on the Free plan or choose the plan that fits.</p>
+    <div class="pay-logos"><span>${icon('shield')} Secure payments by Paystack</span><span>${icon('check')} Card, bank transfer or USSD</span><span>${icon('check')} Cancel any time</span></div>
+  </div>
+</section>
+
+<section class="tinted" id="compare">
+  <div class="wrap">
+    <div class="section-head"><h2>Compare plans</h2><p>Everything included in each plan.</p></div>
+    <div class="compare-wrap">${table}</div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head"><h2>Billing questions</h2></div>
+    <div class="faq-list">
+      ${PRICING_FAQ.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n      ')}
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <h2>Not sure which plan fits?</h2>
+    <p>Start the free trial with your own project, or book a short demo and we’ll help you choose.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="${app('/signup')}">Start your free trial</a>
+      <a class="btn btn-ghost" href="/home#demo">Book a demo</a>
+    </div>
+  </div>
+</section>
+</main>
+${footerHtml(app, businessName)}
+<script>
+(function () {
+  ${MENU_JS}
+  var state = { interval: 'monthly', currency: 'ngn' };
+  try { if (Intl.DateTimeFormat().resolvedOptions().timeZone !== 'Africa/Lagos') state.currency = 'usd'; } catch (e) {}
+  try { var saved = JSON.parse(localStorage.getItem('p4d_pricing') || 'null'); if (saved) state = saved; } catch (e) {}
+  function render() {
+    document.querySelectorAll('[data-interval]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.interval === state.interval); });
+    document.querySelectorAll('[data-currency]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.currency === state.currency); });
+    var yearly = state.interval === 'annually';
+    document.querySelectorAll('.tier').forEach(function (card) {
+      var price = card.querySelector('.price'), amount = card.querySelector('.amount'), per = card.querySelector('.per'), pm = card.querySelector('.pm');
+      var key = 'data-' + state.currency + '-' + state.interval;
+      if (!price.hasAttribute(key)) { amount.textContent = state.currency === 'ngn' ? '₦0' : '$0'; return; }
+      amount.textContent = price.getAttribute(key);
+      per.textContent = yearly ? '/year' : '/month';
+      if (pm) pm.textContent = yearly ? price.getAttribute(key + '-pm') + ' a month, billed yearly' : 'Billed monthly';
+    });
+    try { localStorage.setItem('p4d_pricing', JSON.stringify(state)); } catch (e) {}
+  }
+  document.querySelectorAll('[data-interval]').forEach(function (b) { b.addEventListener('click', function () { state.interval = b.dataset.interval; render(); }); });
+  document.querySelectorAll('[data-currency]').forEach(function (b) { b.addEventListener('click', function () { state.currency = b.dataset.currency; render(); }); });
+  render();
 })();
 </script>
 </body>
