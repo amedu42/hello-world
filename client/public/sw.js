@@ -1,7 +1,7 @@
 // Proj4D service worker: makes the app installable and shows an offline page when there's no signal.
 // It only caches the app's own code, icons and the offline page — never API data, photos or logins,
 // so everything you see is always live.
-const CACHE = 'proj4d-v3';
+const CACHE = 'proj4d-v4'; // bump to clear every older cache on update
 const PRECACHE = ['/offline.html', '/icons/icon-192.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -38,7 +38,9 @@ self.addEventListener('fetch', (event) => {
         (hit) =>
           hit ||
           fetch(req).then((res) => {
-            if (res.ok) {
+            // Only keep real files: never an HTML page served in place of a missing script or stylesheet.
+            const type = res.headers.get('Content-Type') || '';
+            if (res.ok && !type.includes('text/html')) {
               const copy = res.clone();
               caches.open(CACHE).then((c) => c.put(req, copy));
             }

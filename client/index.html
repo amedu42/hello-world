@@ -79,6 +79,21 @@
       })();
     </script>
     <div id="root"></div>
+    <script>
+      // Safety net: if the app's stylesheet didn't load (e.g. a bad copy in the offline cache), clear the
+      // cache and service worker and reload once.
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var styled = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim();
+          if (styled) return;
+          try { if (sessionStorage.getItem('p4d_css_repair')) return; sessionStorage.setItem('p4d_css_repair', '1'); } catch (e) { return; }
+          var jobs = [];
+          if (window.caches) jobs.push(caches.keys().then(function (k) { return Promise.all(k.map(function (n) { return caches.delete(n); })); }));
+          if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister(); })); }));
+          Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+        }, 300);
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
