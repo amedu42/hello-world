@@ -3,6 +3,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { db, tx } from './db.js';
 import { appUrl, mailEnabled, resetEmail, sendMail } from './mail.js';
+import { PLANS, TRIAL_DAYS, allowedUserIds, billingSummary, migrateBilling, planOf } from './plans.js';
 
 // ------------------------------------------------------------------ schema
 
@@ -43,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 const companyCols = db.prepare('PRAGMA table_info(companies)').all().map((c) => c.name);
 if (!companyCols.includes('logo_filename')) db.exec('ALTER TABLE companies ADD COLUMN logo_filename TEXT');
 if (!companyCols.includes('primary_color')) db.exec('ALTER TABLE companies ADD COLUMN primary_color TEXT');
-if (!companyCols.includes('premium_programmes')) db.exec('ALTER TABLE companies ADD COLUMN premium_programmes INTEGER NOT NULL DEFAULT 0'); // AI programme generator
+migrateBilling(); // subscription plan columns and tables
 
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('terms_accepted_at')) db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
@@ -161,7 +162,7 @@ export function loadSession(req, _res, next) {
          WHERE s.token_hash = ? AND s.expires_at > ?`
       )
       .get(sha256(token), new Date().toISOString());
-    if (row && row.company_status === 'active') {
+    if (row && row.company_status === 'active' && allowedUserIds(row.company_id).has(row.id)) {
       req.user = { ...row };
       req.company = { id: row.company_id, name: row.company_name, logo_filename: row.logo_filename, primary_color: row.primary_color };
       req.sessionHash = row.token_hash;
@@ -249,10 +250,7 @@ authRouter.get('/me', (req, res) => {
       has_logo: Boolean(logo_filename),
       logo_version: logo_filename || null,
       primary_color: primary_color || null,
-      premium_programmes:
-        process.env.PREMIUM_PROGRAMMES === 'all' ||
-        isPlatformAdmin(req.user) ||
-        Boolean(db.prepare('SELECT premium_programmes FROM companies WHERE id = ?').get(id)?.premium_programmes),
+      billing: billingSummary(id),
     },
     platform_admin: isPlatformAdmin(req.user),
   });
@@ -274,12 +272,15 @@ authRouter.post(
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new AuthError(409, 'An account with this email already exists. Log in instead.');
 
     const userId = tx(() => {
-      const cid = db.prepare('INSERT INTO companies (name) VALUES (?)').run(company).lastInsertRowid;
+      // Every new company starts with a free trial of all paid features (no card needed).
+      const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString();
+      const cid = db.prepare('INSERT INTO companies (name, trial_ends_at) VALUES (?, ?)').run(company, trialEnds).lastInsertRowid;
       const uid = db
         .prepare("INSERT INTO users (company_id, name, email, password_hash, role, terms_accepted_at) VALUES (?,?,?,?,?,datetime('now'))")
         .run(cid, name, email, hashPassword(b.password), 'admin').lastInsertRowid;
       // Projects from before company accounts existed go to the platform owner's company.
       if (PLATFORM_ADMIN_EMAIL && email === PLATFORM_ADMIN_EMAIL) {
+        db.prepare("UPDATE companies SET plan_override = 'business' WHERE id = ?").run(cid); // the platform owner's company
         const n = db.prepare('UPDATE projects SET company_id = ? WHERE company_id IS NULL').run(cid).changes;
         if (n) console.log(`Assigned ${n} existing project(s) to company #${cid} (${company}).`);
       }
@@ -303,6 +304,10 @@ authRouter.post(
     const ok = verifyPassword(password, u ? u.password_hash : DUMMY_HASH);
     if (!u || !ok) throw new AuthError(401, 'Incorrect email or password.');
     if (u.company_status !== 'active') throw new AuthError(403, 'This company account is suspended. Please contact support.');
+    if (!allowedUserIds(u.company_id).has(u.id)) {
+      const plan = planOf(u.company_id);
+      throw new AuthError(403, `Your company's ${plan.name} plan allows ${plan.members} members, so your account is paused. Ask your company admin to upgrade the plan.`);
+    }
     startSession(req, res, u.id);
     res.json({ ok: true });
   })
@@ -407,8 +412,12 @@ authRouter.get('/legal', (_req, res) => {
 // ---------- team management (company admins)
 
 authRouter.get('/team', requireUser, (req, res) => {
-  const users = db.prepare('SELECT * FROM users WHERE company_id = ? ORDER BY created_at, id').all(req.company.id).map(publicUser);
-  res.json({ users, me: req.user.id });
+  const allowed = allowedUserIds(req.company.id);
+  const users = db
+    .prepare('SELECT * FROM users WHERE company_id = ? ORDER BY created_at, id')
+    .all(req.company.id)
+    .map((u) => ({ ...publicUser(u), paused: !allowed.has(u.id) }));
+  res.json({ users, me: req.user.id, billing: billingSummary(req.company.id) });
 });
 
 authRouter.post(
@@ -424,6 +433,11 @@ authRouter.post(
     if (!isEmail(email)) throw new AuthError(400, 'Enter a valid email address.');
     checkPassword(b.password);
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new AuthError(409, 'A user with this email already exists.');
+    const plan = planOf(req.company.id);
+    const count = db.prepare('SELECT COUNT(*) n FROM users WHERE company_id = ?').get(req.company.id).n;
+    if (plan.members != null && count >= plan.members) {
+      throw new AuthError(402, `Your ${plan.name} plan allows up to ${plan.members} members. Upgrade your plan to add more.`);
+    }
     db.prepare('INSERT INTO users (company_id, name, email, password_hash, role, must_change_password) VALUES (?,?,?,?,?,1)').run(
       req.company.id, name, email, hashPassword(b.password), role
     );
@@ -487,7 +501,7 @@ authRouter.get('/admin/companies', requireUser, requirePlatformAdmin, (_req, res
     )
     .all();
   const unassigned = db.prepare('SELECT COUNT(*) n FROM projects WHERE company_id IS NULL').get().n;
-  res.json({ companies: rows.map((r) => ({ ...r })), unassigned_projects: unassigned });
+  res.json({ companies: rows.map((r) => ({ ...r, billing: billingSummary(r.id) })), unassigned_projects: unassigned, plans: Object.values(PLANS) });
 });
 
 // Lets the platform owner rescue a company admin who is locked out (works without email).
@@ -509,10 +523,6 @@ authRouter.put(
   wrap((req, res) => {
     const c = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.params.cid);
     if (!c) throw new AuthError(404, 'Company not found');
-    if (req.body?.premium_programmes !== undefined) {
-      // Premium: AI work programme generator
-      db.prepare('UPDATE companies SET premium_programmes = ? WHERE id = ?').run(req.body.premium_programmes ? 1 : 0, c.id);
-    }
     if (req.body?.status !== undefined) {
       const status = req.body.status === 'suspended' ? 'suspended' : 'active';
       if (status === 'suspended' && c.id === req.company.id) throw new AuthError(400, "You can't suspend your own company.");

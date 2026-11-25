@@ -162,8 +162,8 @@ export default function ProgrammeGeneratorPage() {
             <li>AI plans the phases, tasks, durations and links, and the dates are calculated for you.</li>
             <li>Edit anything, then download a Gantt chart PDF or an MS Project XML file, or use it as this project's task list.</li>
           </ul>
-          <p>This is a premium feature. Ask us to enable it for your company.</p>
-          <a className="btn primary" href="/home#demo">Contact us</a>
+          <p>Included in the Professional and Business plans.</p>
+          <Link className="btn primary" to="/billing">See plans</Link>
         </section>
       </>
     );

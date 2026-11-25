@@ -11,6 +11,7 @@ import NotificationsPage from './pages/NotificationsPage.jsx';
 import Home from './pages/Home.jsx';
 import ProjectDashboard from './pages/ProjectDashboard.jsx';
 import ProgrammeGeneratorPage from './pages/ProgrammeGeneratorPage.jsx';
+import BillingPage from './pages/BillingPage.jsx';
 import ReportForm from './pages/ReportForm.jsx';
 import ReportView from './pages/ReportView.jsx';
 import { AccountPage, AdminPage, TeamPage } from './pages/TeamPages.jsx';
@@ -112,9 +113,15 @@ export default function App() {
             <span>Proj4D</span>
           </Link>
           <div className="topbar-right">
-            <span className={`ai-pill ${status.ai ? 'on' : ''}`} title={status.ai ? 'AI features are available' : 'AI features are off on this server'}>
-              <Sparkle /> AI {status.ai ? 'on' : 'off'}
-            </span>
+            {status.ai || !status.ai_server ? (
+              <span className={`ai-pill ${status.ai ? 'on' : ''}`} title={status.ai ? 'AI features are available' : 'AI features are off on this server'}>
+                <Sparkle /> AI {status.ai ? 'on' : 'off'}
+              </span>
+            ) : (
+              <Link to="/billing" className="ai-pill upgrade" title="AI features are included in the Starter plan and above">
+                <Sparkle /> Get AI
+              </Link>
+            )}
             <details className="menu user-menu">
               <summary>
                 <span className="avatar" aria-hidden="true">{me.user.name.slice(0, 1).toUpperCase()}</span>
@@ -128,6 +135,7 @@ export default function App() {
                 <Link to="/">Projects</Link>
                 <Link to="/team">Team</Link>
                 {me.user.role === 'admin' && <Link to="/settings">Company settings</Link>}
+                <Link to="/billing">Plan &amp; billing</Link>
                 <Link to="/notifications">Notifications</Link>
                 <Link to="/account">Your account</Link>
                 {me.platform_admin && <Link to="/admin">Platform admin</Link>}
@@ -136,6 +144,7 @@ export default function App() {
             </details>
           </div>
         </header>
+        <PlanBanner me={me} />
         <main className="container">
           {location.pathname === '/terms' ? (
             <TermsPage />
@@ -159,6 +168,7 @@ export default function App() {
               <Route path="/reports/:rid/edit" element={<ReportForm />} />
               <Route path="/team" element={<TeamPage />} />
               <Route path="/settings" element={<CompanySettings />} />
+              <Route path="/billing" element={<BillingPage />} />
               <Route path="/account" element={<AccountPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               {me.platform_admin && <Route path="/admin" element={<AdminPage />} />}
@@ -179,4 +189,31 @@ export function Sparkle({ size = 14 }) {
       <path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" />
     </svg>
   );
+}
+
+/** Trial countdown, and a nudge once the trial has ended (company admins only; not on the billing page itself). */
+function PlanBanner({ me }) {
+  const location = useLocation();
+  const b = me.company.billing;
+  if (!b || me.user.role !== 'admin' || location.pathname === '/billing') return null;
+  const sub = b.subscription;
+  if (b.source === 'trial' && b.trial_days_left <= 7) {
+    return (
+      <div className="plan-banner">
+        <span>
+          <b>Free trial: {b.trial_days_left} day{b.trial_days_left === 1 ? '' : 's'} left.</b> You have every feature. Choose a plan to keep AI and larger teams after the trial.
+        </span>
+        <Link className="btn sm primary" to="/billing">Choose a plan</Link>
+      </div>
+    );
+  }
+  if (sub?.status === 'attention') {
+    return (
+      <div className="plan-banner warn">
+        <span><b>Your last payment didn't go through.</b> Update your card to keep the {sub.plan_name} plan.</span>
+        <Link className="btn sm primary" to="/billing">Fix payment</Link>
+      </div>
+    );
+  }
+  return null;
 }

@@ -175,7 +175,7 @@ function readMsProjectXml(text) {
 /**
  * Returns { activities, method, warnings } where method describes how the programme was read.
  */
-export async function parseProgramme(filePath, originalName, mimeType) {
+export async function parseProgramme(filePath, originalName, mimeType, { ai = aiEnabled() } = {}) {
   const ext = path.extname(originalName || filePath).toLowerCase();
   const warnings = [];
   let rowsSets = null;
@@ -194,8 +194,12 @@ export async function parseProgramme(filePath, originalName, mimeType) {
     const acts = readMsProjectXml(rawText);
     if (acts?.length) return { activities: acts, method: 'MS Project XML', warnings };
   } else if (ext === '.pdf' || mimeType === 'application/pdf') {
-    if (!aiEnabled()) {
-      throw new Error('Reading PDF programmes requires AI to be configured (set ANTHROPIC_API_KEY). Upload an Excel/CSV export instead.');
+    if (!ai) {
+      throw new Error(
+        aiEnabled()
+          ? 'Reading PDF programmes uses AI, which is included in the Starter plan and above. Upload an Excel, CSV or MS Project XML export instead, or upgrade.'
+          : 'Reading PDF programmes requires AI to be configured (set ANTHROPIC_API_KEY). Upload an Excel/CSV export instead.'
+      );
     }
     const acts = await extractActivitiesWithAI({ pdfPath: filePath });
     return { activities: acts, method: 'AI (PDF)', warnings };
@@ -211,7 +215,7 @@ export async function parseProgramme(filePath, originalName, mimeType) {
   }
 
   // Couldn't recognise the columns: fall back to AI extraction over a text rendering.
-  if (aiEnabled()) {
+  if (ai) {
     const text =
       rawText ??
       (rowsSets || [])
