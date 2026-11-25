@@ -16,14 +16,14 @@ import ReportForm from './pages/ReportForm.jsx';
 import ReportView from './pages/ReportView.jsx';
 import { AccountPage, AdminPage, TeamPage } from './pages/TeamPages.jsx';
 
-const StatusCtx = createContext({ ai: false });
+const StatusCtx = createContext({ ai: false, features: {} });
 export const useStatus = () => useContext(StatusCtx);
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
 
 export default function App() {
   const [me, setMe] = useState(undefined); // undefined = loading, null = logged out
-  const [status, setStatus] = useState({ ai: false });
+  const [status, setStatus] = useState({ ai: false, features: {} });
   const navigate = useNavigate();
   const location = useLocation();
 

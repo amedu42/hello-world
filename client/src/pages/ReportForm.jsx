@@ -80,7 +80,8 @@ export default function ReportForm() {
   const { id: projectIdParam, rid } = useParams();
   const editing = Boolean(rid);
   const navigate = useNavigate();
-  const { ai } = useStatus();
+  const { features = {} } = useStatus();
+  const ai = features.summaries;
 
   const [project, setProject] = useState(null);
   const [form, setForm] = useState(null);
@@ -314,7 +315,7 @@ export default function ReportForm() {
       )}
       <ErrorNote error={error} onClose={() => setError(null)} />
 
-      {ai && <QuickFill projectId={project.id} date={form.report_date} onResult={applyAI} />}
+      {features.notes && <QuickFill projectId={project.id} date={form.report_date} onResult={applyAI} />}
 
       {/* ---------------- General */}
       <section className="card form-section">

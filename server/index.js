@@ -14,7 +14,7 @@ import { demoAdminRouter, publicRouter } from './demo.js';
 import { renderLanding } from './landing.js';
 import { generatorFiles, programmeGenRouter } from './programmeGen.js';
 import { billingRouter, paystackEnabled } from './billing.js';
-import { planOf } from './plans.js';
+import { AI_FEATURE_NAMES, planOf, planWith } from './plans.js';
 import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
@@ -124,14 +124,19 @@ function defaultWeight(projectId) {
 
 // ------------------------------------------------------------------ Status
 
-/** AI is available when the server has a key and the company's plan includes it. */
-const aiFor = (req) => aiEnabled() && planOf(req.company.id).ai;
-const requireAI = (req) => {
+/** An AI feature is available when the server has a key and the company's plan includes that feature. */
+const aiFor = (req, feature) => aiEnabled() && Boolean(planOf(req.company.id).features[feature]);
+const requireAI = (req, feature) => {
   if (!aiEnabled()) throw new HttpError(400, 'AI is not configured on the server (set ANTHROPIC_API_KEY).');
-  if (!planOf(req.company.id).ai) throw new HttpError(402, 'AI features are included in the Starter plan and above. Upgrade on the Plan & billing page.');
+  if (!planOf(req.company.id).features[feature]) {
+    throw new HttpError(402, `${AI_FEATURE_NAMES[feature]} is included in the ${planWith(feature).name} plan and above. Upgrade on the Plan & billing page.`);
+  }
 };
 
-app.get('/api/status', (req, res) => res.json({ ai: aiFor(req), ai_server: aiEnabled(), payments: paystackEnabled() }));
+app.get('/api/status', (req, res) => {
+  const features = Object.fromEntries(Object.keys(AI_FEATURE_NAMES).map((f) => [f, aiFor(req, f)]));
+  res.json({ ai: Object.values(features).some(Boolean), features, ai_server: aiEnabled(), payments: paystackEnabled() });
+});
 
 // ------------------------------------------------------------------ Projects
 
@@ -221,7 +226,7 @@ app.post(
     getProject(req, req.params.id);
     if (!req.file) throw new HttpError(400, 'No file uploaded');
     try {
-      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype, { ai: aiFor(req) });
+      const result = await parseProgramme(req.file.path, req.file.originalname, req.file.mimetype, { ai: aiFor(req, 'programme_pdf') });
       db.prepare('UPDATE projects SET programme_file = ? WHERE id = ?').run(req.file.originalname, req.params.id);
       res.json(result);
     } catch (e) {
@@ -464,7 +469,7 @@ async function saveReport(req, res, existingId) {
   const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, date);
   const ctx = { project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null };
   let summary, source = 'template', aiError = null;
-  if (aiFor(req) && data.ai_summary !== false) {
+  if (aiFor(req, 'summaries') && data.ai_summary !== false) {
     try {
       summary = await generateReportSummary(ctx);
       source = 'ai';
@@ -523,7 +528,7 @@ app.post(
   wrap(async (req, res) => {
     const { report, items, registers } = loadReport(req, req.params.rid);
     const project = getProject(req, report.project_id);
-    requireAI(req);
+    requireAI(req, 'summaries');
     const prev = db.prepare('SELECT overall_progress FROM reports WHERE project_id = ? AND report_date < ? ORDER BY report_date DESC LIMIT 1').get(project.id, report.report_date);
     try {
       const summary = await generateReportSummary({ project, report, items, registers, overall: report.overall_progress, previousOverall: prev?.overall_progress ?? null });
@@ -591,7 +596,7 @@ app.post(
   '/api/projects/:id/ai/parse-notes',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    requireAI(req);
+    requireAI(req, 'notes');
     const notes = String(req.body?.notes || '').trim();
     if (!notes) throw new HttpError(400, 'Type or paste your site notes first');
     const date = req.body?.date || today();
@@ -611,7 +616,7 @@ app.post(
   '/api/projects/:id/ai/insights',
   wrap(async (req, res) => {
     const p = getProject(req, req.params.id);
-    requireAI(req);
+    requireAI(req, 'insights');
     const activities = listActivities(p.id);
     const reports = db.prepare('SELECT * FROM reports WHERE project_id = ? ORDER BY report_date DESC LIMIT 14').all(p.id).map(decodeReport).reverse();
     if (!reports.length) throw new HttpError(400, 'Submit at least one daily report first.');

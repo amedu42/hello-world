@@ -9,7 +9,7 @@ export default function ReportView() {
   const { rid } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { ai } = useStatus();
+  const ai = useStatus().features?.summaries;
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [regen, setRegen] = useState(false);

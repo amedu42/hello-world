@@ -4,7 +4,7 @@ import { useStatus } from '../App.jsx';
 import { ErrorNote, Modal, Spinner } from './ui.jsx';
 
 export default function ProgrammeUploadModal({ project, hasActivities, onClose, onImported }) {
-  const { ai } = useStatus();
+  const ai = useStatus().features?.programme_pdf;
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [rows, setRows] = useState([]);
