@@ -17,7 +17,8 @@
       /* Animated launch screen for the installed app (hidden in normal browser tabs). It picks up from the
          phone's own launch screen (the icon on navy) and fades into the app once it has loaded. */
       #splash { display: none; }
-      .standalone body { background: #16324f; }
+      /* Navy behind the splash only (no white flash at launch); removed when the splash goes. */
+      .splashing, .splashing body { background: #16324f; }
       .standalone #splash { display: flex; position: fixed; inset: 0; z-index: 9999; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(520px 380px at 50% 38%, #224b74 0, #16324f 70%); color: #fff; font: 600 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; transition: opacity .45s ease, transform .45s ease; }
       #splash.out { opacity: 0; transform: scale(1.04); pointer-events: none; }
       #splash .tile { width: 112px; height: 112px; animation: sp-pop .9s cubic-bezier(.2, .9, .3, 1.25) both; filter: drop-shadow(0 18px 30px rgba(5, 14, 26, .55)); }
@@ -42,7 +43,7 @@
       // Installed app (Android/desktop "standalone", or an iPhone home-screen app)?
       (function () {
         var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        if (standalone) document.documentElement.classList.add('standalone');
+        if (standalone) document.documentElement.classList.add('standalone', 'splashing');
       })();
     </script>
   </head>
@@ -71,6 +72,7 @@
           done = true;
           setTimeout(function () {
             el.classList.add('out');
+            document.documentElement.classList.remove('splashing'); // the app's own background shows through the fade
             setTimeout(function () { el.remove(); }, 500);
           }, Math.max(0, minMs - (Date.now() - start)));
         }
