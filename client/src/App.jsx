@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.js';
 import { Spinner } from './components/ui.jsx';
-import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from './pages/AuthPages.jsx';
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage, VerifyEmailGate, VerifyEmailPage } from './pages/AuthPages.jsx';
 import { LegalFooter, PrivacyPage, TermsPage } from './pages/LegalPages.jsx';
 import AttendancePage from './pages/AttendancePage.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
@@ -92,6 +92,7 @@ export default function App() {
         <Route path="/signup" element={<SignupPage onDone={afterLogin} />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage onDone={afterLogin} />} />
+        <Route path="/verify-email" element={<VerifyEmailPage loggedIn={false} />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="*" element={<LoginPage onDone={afterLogin} />} />
@@ -104,6 +105,15 @@ export default function App() {
     setMe(null);
     navigate('/login', { replace: true });
   };
+
+  // The emailed confirmation link, opened while logged in.
+  if (location.pathname === '/verify-email') {
+    return <VerifyEmailPage loggedIn onDone={async () => { await reload(); navigate('/', { replace: true }); }} />;
+  }
+  // New accounts confirm their email address before using the app.
+  if (!me.user.email_verified) {
+    return <VerifyEmailGate me={me} onVerified={async () => { await reload(); navigate('/', { replace: true }); }} onLogout={logout} />;
+  }
 
   // A temporary password must be changed before anything else.
   const forcePassword = me.user.must_change_password;

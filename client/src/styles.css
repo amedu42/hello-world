@@ -887,3 +887,8 @@ tr.editing td { vertical-align: middle; }
   .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .prog-editor .title-input { font-size: 21px; }
 }
+
+/* Email verification */
+.verify-icon { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--info-bg); color: var(--brand-2); margin: 4px 0 6px; }
+.verify-icon.good { background: var(--good-bg); color: var(--good); }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--brand-2); cursor: pointer; text-decoration: underline; }

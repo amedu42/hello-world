@@ -176,7 +176,7 @@ export function PrivacyPage() {
           <ul>
             <li>to provide the service: logging in, storing and showing your projects and reports, and producing PDFs;</li>
             <li>to keep it secure: separating each company's data, limiting repeated login attempts and investigating misuse;</li>
-            <li>to contact you about your account, for example password reset emails and important service notices;</li>
+            <li>to contact you about your account, for example confirming your email address, a welcome email with tips for getting started, password reset emails and important service notices;</li>
             <li>to support you when you ask for help.</li>
           </ul>
           <p>We do not sell personal data or use it for advertising.</p>

@@ -19,6 +19,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY  # optional: turns on the AI features
         sync: false
+      - key: SIGNUP_ALERT_EMAILS  # optional: extra addresses (comma-separated) for new-signup alerts; PLATFORM_ADMIN_EMAIL always gets them
+        sync: false
       - key: PAYSTACK_SECRET_KEY  # Paystack secret key (sk_live_…): turns on subscription payments
         sync: false
       # Business details shown on the Terms of Service and Privacy Policy pages
