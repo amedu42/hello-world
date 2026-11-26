@@ -274,7 +274,7 @@ export function AdminPage() {
                   {data.companies.map((c) => (
                     <tr key={c.id}>
                       <td className="cell-title"><b>{c.name}</b></td>
-                      <td className="muted break" data-label="Admin">{c.admin_email}</td>
+                      <td className="muted break" data-label="Admin">{c.admin_email}{c.admin_email && !c.admin_verified && <span className="badge sm warn-badge" title="Hasn't confirmed their email yet">unconfirmed</span>}</td>
                       <td className="num" data-label="Users">{c.user_count}</td>
                       <td className="num" data-label="Projects">{c.project_count}</td>
                       <td className="num" data-label="Reports">{c.report_count}</td>

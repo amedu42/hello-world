@@ -2,7 +2,8 @@
 import express from 'express';
 import crypto from 'node:crypto';
 import { db, tx } from './db.js';
-import { appUrl, mailEnabled, resetEmail, sendMail } from './mail.js';
+import { EventEmitter } from 'node:events';
+import { appUrl, mailEnabled, resetEmail, sendMail, verifyEmail, welcomeEmail } from './mail.js';
 import { PLANS, TRIAL_DAYS, allowedUserIds, billingSummary, migrateBilling, planOf } from './plans.js';
 
 // ------------------------------------------------------------------ schema
@@ -48,6 +49,20 @@ migrateBilling(); // subscription plan columns and tables
 
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('terms_accepted_at')) db.exec('ALTER TABLE users ADD COLUMN terms_accepted_at TEXT');
+if (!userCols.includes('email_verified_at')) {
+  db.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
+  // Everyone who signed up before verification existed counts as verified.
+  db.exec("UPDATE users SET email_verified_at = COALESCE(created_at, datetime('now'))");
+}
+db.exec(`CREATE TABLE IF NOT EXISTS email_verifications (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+)`);
+
+/** Account events (new signups, verified emails) for alerts elsewhere in the app. */
+export const authEvents = new EventEmitter();
 
 // Projects created before multi-company support have no company yet.
 const projectCols = db.prepare('PRAGMA table_info(projects)').all().map((c) => c.name);
@@ -118,7 +133,16 @@ function startSession(req, res, userId) {
 export const isPlatformAdmin = (user) => Boolean(PLATFORM_ADMIN_EMAIL && user?.email?.toLowerCase() === PLATFORM_ADMIN_EMAIL);
 
 function publicUser(u) {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, must_change_password: Boolean(u.must_change_password), created_at: u.created_at, last_login: u.last_login };
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    must_change_password: Boolean(u.must_change_password),
+    email_verified: Boolean(u.email_verified_at),
+    created_at: u.created_at,
+    last_login: u.last_login,
+  };
 }
 
 // Simple in-memory limiter for login/sign-up attempts.
@@ -192,6 +216,16 @@ export function requireUser(req, _res, next) {
   next();
 }
 
+/** Blocks the app's data until the signed-in user has confirmed their email address. */
+export function requireVerified(req, _res, next) {
+  if (req.user && !req.user.email_verified_at) {
+    const e = new AuthError(403, 'Please confirm your email address first. We sent you a link.');
+    e.code = 'email_unverified';
+    return next(e);
+  }
+  next();
+}
+
 const requireAdmin = (req, _res, next) => (req.user?.role === 'admin' ? next() : next(new AuthError(403, 'Only company admins can do this.')));
 const requirePlatformAdmin = (req, _res, next) => (isPlatformAdmin(req.user) ? next() : next(new AuthError(403, 'Not allowed.')));
 
@@ -258,7 +292,7 @@ authRouter.get('/me', (req, res) => {
 
 authRouter.post(
   '/signup',
-  wrap((req, res) => {
+  wrap(async (req, res) => {
     rateLimit(`signup:${req.ip}`, 5, 60 * 60000);
     const b = req.body || {};
     const company = String(b.company || '').trim();
@@ -275,9 +309,11 @@ authRouter.post(
       // Every new company starts with a free trial of all paid features (no card needed).
       const trialEnds = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString();
       const cid = db.prepare('INSERT INTO companies (name, trial_ends_at) VALUES (?, ?)').run(company, trialEnds).lastInsertRowid;
+      // Without email sending there's no way to confirm the address, so the account counts as verified.
+      const verifiedNow = !mailEnabled() || (PLATFORM_ADMIN_EMAIL && email === PLATFORM_ADMIN_EMAIL);
       const uid = db
-        .prepare("INSERT INTO users (company_id, name, email, password_hash, role, terms_accepted_at) VALUES (?,?,?,?,?,datetime('now'))")
-        .run(cid, name, email, hashPassword(b.password), 'admin').lastInsertRowid;
+        .prepare("INSERT INTO users (company_id, name, email, password_hash, role, terms_accepted_at, email_verified_at) VALUES (?,?,?,?,?,datetime('now'),?)")
+        .run(cid, name, email, hashPassword(b.password), 'admin', verifiedNow ? new Date().toISOString() : null).lastInsertRowid;
       // Projects from before company accounts existed go to the platform owner's company.
       if (PLATFORM_ADMIN_EMAIL && email === PLATFORM_ADMIN_EMAIL) {
         db.prepare("UPDATE companies SET plan_override = 'business' WHERE id = ?").run(cid); // the platform owner's company
@@ -287,7 +323,11 @@ authRouter.post(
       return uid;
     });
     startSession(req, res, userId);
-    res.status(201).json({ ok: true });
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    let verificationSent = false;
+    if (!user.email_verified_at) verificationSent = await sendVerification(req, user).catch((e) => (console.error('Verification email failed:', e.message), false));
+    authEvents.emit('signup', { user: { ...user }, company: { id: user.company_id, name: company }, verificationSent });
+    res.status(201).json({ ok: true, verification_sent: verificationSent });
   })
 );
 
@@ -330,6 +370,93 @@ authRouter.post(
     // Sign out other devices.
     db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?').run(req.user.id, req.sessionHash);
     res.json({ ok: true });
+  })
+);
+
+// ---------- email verification
+
+const VERIFY_HOURS = 72;
+
+/** Emails a fresh confirmation link (replacing earlier ones). Resolves to true if it was sent. */
+async function sendVerification(req, user) {
+  const base = appUrl(req) || `${req.protocol}://${req.get('host')}`;
+  const token = crypto.randomBytes(32).toString('base64url');
+  db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(user.id);
+  db.prepare('INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?,?,?)').run(
+    sha256(token), user.id, new Date(Date.now() + VERIFY_HOURS * 3600000).toISOString()
+  );
+  return sendMail({ to: user.email, ...verifyEmail({ name: user.name, link: `${base}/verify-email?token=${token}`, hours: VERIFY_HOURS }) });
+}
+
+/** The welcome email, sent once an address is confirmed (fire and forget). */
+function sendWelcome(req, user) {
+  const base = appUrl(req) || `${req.protocol}://${req.get('host')}`;
+  const site = (process.env.HOMEPAGE_URL || base).replace(/\/+$/, '');
+  const c = db.prepare('SELECT name, trial_ends_at FROM companies WHERE id = ?').get(user.company_id) || {};
+  const trialEnds = c.trial_ends_at && Date.parse(c.trial_ends_at) > Date.now()
+    ? new Date(c.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : null;
+  sendMail({
+    to: user.email,
+    ...welcomeEmail({
+      name: user.name,
+      company: c.name || 'Your company',
+      appLink: `${base}/`,
+      pricingLink: `${site}/pricing`,
+      trialEnds,
+      contactEmail: process.env.CONTACT_EMAIL || process.env.LEGAL_CONTACT_EMAIL || '',
+      whatsapp: String(process.env.CONTACT_WHATSAPP || '').replace(/[^\d]/g, ''),
+    }),
+  }).catch((e) => console.error('Welcome email failed:', e.message));
+}
+
+// Confirm an address from the emailed link (works whether or not the person is logged in on this device).
+authRouter.post(
+  '/verify-email',
+  wrap((req, res) => {
+    rateLimit(`verify:${req.ip}`, 30);
+    const token = String(req.body?.token || '');
+    const row = db
+      .prepare('SELECT v.user_id FROM email_verifications v WHERE v.token_hash = ? AND v.expires_at > ?')
+      .get(sha256(token), new Date().toISOString());
+    if (!row) {
+      // Already used? Then the account may simply be verified already.
+      if (req.user?.email_verified_at) return res.json({ ok: true, already: true });
+      throw new AuthError(400, 'This link is invalid or has expired. Log in and ask for a new one.');
+    }
+    db.prepare("UPDATE users SET email_verified_at = datetime('now') WHERE id = ? AND email_verified_at IS NULL").run(row.user_id);
+    db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(row.user_id);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+    sendWelcome(req, user);
+    authEvents.emit('verified', { user: { ...user } });
+    res.json({ ok: true, email: user.email });
+  })
+);
+
+authRouter.post(
+  '/verify-email/resend',
+  requireUser,
+  wrap(async (req, res) => {
+    if (req.user.email_verified_at) return res.json({ ok: true, already: true });
+    rateLimit(`verify-resend:${req.user.id}`, 5, 60 * 60000);
+    await sendVerification(req, req.user);
+    res.json({ ok: true, email: req.user.email });
+  })
+);
+
+// Fix a mistyped address before it's confirmed (then a new link goes to the corrected address).
+authRouter.post(
+  '/verify-email/change',
+  requireUser,
+  wrap(async (req, res) => {
+    if (req.user.email_verified_at) throw new AuthError(400, 'Your email is already confirmed. Change it from Your account.');
+    rateLimit(`verify-change:${req.user.id}`, 5, 60 * 60000);
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!isEmail(email)) throw new AuthError(400, 'Enter a valid email address.');
+    if (email !== req.user.email && db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new AuthError(409, 'An account with this email already exists.');
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, req.user.id);
+    await sendVerification(req, { ...req.user, email });
+    res.json({ ok: true, email });
   })
 );
 
@@ -388,6 +515,8 @@ authRouter.post(
     if (row.status !== 'active') throw new AuthError(403, 'This company account is suspended. Please contact support.');
     tx(() => {
       db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hashPassword(req.body.password), row.user_id);
+      // The reset link came by email, so the address is confirmed too.
+      db.prepare("UPDATE users SET email_verified_at = datetime('now') WHERE id = ? AND email_verified_at IS NULL").run(row.user_id);
       db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(row.user_id);
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
     });
@@ -438,7 +567,8 @@ authRouter.post(
     if (plan.members != null && count >= plan.members) {
       throw new AuthError(402, `Your ${plan.name} plan allows up to ${plan.members} members. Upgrade your plan to add more.`);
     }
-    db.prepare('INSERT INTO users (company_id, name, email, password_hash, role, must_change_password) VALUES (?,?,?,?,?,1)').run(
+    // People added by their company admin are vouched for, so they don't need to confirm their email.
+    db.prepare("INSERT INTO users (company_id, name, email, password_hash, role, must_change_password, email_verified_at) VALUES (?,?,?,?,?,1,datetime('now'))").run(
       req.company.id, name, email, hashPassword(b.password), role
     );
     res.status(201).json({ ok: true });
@@ -496,7 +626,8 @@ authRouter.get('/admin/companies', requireUser, requirePlatformAdmin, (_req, res
         (SELECT COUNT(*) FROM projects p WHERE p.company_id = c.id) AS project_count,
         (SELECT COUNT(*) FROM reports r JOIN projects p ON p.id = r.project_id WHERE p.company_id = c.id) AS report_count,
         (SELECT MAX(u.last_login) FROM users u WHERE u.company_id = c.id) AS last_login,
-        (SELECT u.email FROM users u WHERE u.company_id = c.id AND u.role = 'admin' ORDER BY u.id LIMIT 1) AS admin_email
+        (SELECT u.email FROM users u WHERE u.company_id = c.id AND u.role = 'admin' ORDER BY u.id LIMIT 1) AS admin_email,
+        (SELECT u.email_verified_at IS NOT NULL FROM users u WHERE u.company_id = c.id AND u.role = 'admin' ORDER BY u.id LIMIT 1) AS admin_verified
        FROM companies c ORDER BY c.created_at DESC, c.id DESC`
     )
     .all();

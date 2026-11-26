@@ -16,7 +16,8 @@ import { generatorFiles, programmeGenRouter } from './programmeGen.js';
 import { billingRouter, paystackEnabled } from './billing.js';
 import { progressReportFiles, progressReportsRouter } from './progressReports.js';
 import { AI_FEATURE_NAMES, PLANS, TRIAL_DAYS, planOf, planWith, priceList } from './plans.js';
-import { authRouter, loadSession, sameOrigin, requireUser, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
+import './signupAlerts.js'; // emails and push notifications to the platform admin about new signups
+import { authRouter, loadSession, sameOrigin, requireUser, requireVerified, companyProject, assertActivityAccess, assertReportAccess, photoForCompany } from './auth.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -60,6 +61,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/public', publicRouter); // homepage forms (no login)
 app.use('/api/billing', billingRouter); // plans & Paystack (webhook needs no login; the rest checks it)
 app.use(['/api', '/uploads'], requireUser);
+// New accounts must confirm their email before using the app (the status check stays open for the app shell).
+app.use(['/api', '/uploads'], (req, res, next) => (req.path === '/status' ? next() : requireVerified(req, res, next)));
 
 const storage = multer.diskStorage({
   destination: UPLOAD_DIR,
@@ -717,7 +720,7 @@ if (fs.existsSync(dist)) {
 app.use((err, _req, res, _next) => {
   const status = err.status || (err instanceof multer.MulterError ? 400 : 500);
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: status >= 500 && !err.status ? 'Something went wrong on the server.' : err.message });
+  res.status(status).json({ error: status >= 500 && !err.status ? 'Something went wrong on the server.' : err.message, ...(err.code ? { code: err.code } : {}) });
 });
 
 const PORT = Number(process.env.PORT) || 3001;
